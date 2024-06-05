@@ -1,0 +1,49 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AllowReadS3ReplicationSetting",
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetReplicationConfiguration",
+                "s3:GetObjectVersionForReplication",
+                "s3:GetObjectVersion",
+                "s3:GetObjectVersionAcl",
+                "s3:GetObjectVersionTagging",
+                "s3:GetObjectRetention",
+                "s3:GetObjectLegalHold"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "SOURCE_REGIONS"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "s3:ResourceAccount": [
+                        "BUCKET_OWNER_ACCOUNT"
+                    ]
+                }
+            }
+        },
+        {
+            "Sid": "AllowS3Replication",
+            "Action": [
+                "s3:ReplicateObject",
+                "s3:ReplicateDelete",
+                "s3:ReplicateTags",
+                "s3:GetObjectVersionTagging"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "DESTINATION_REGIONS"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "s3:ResourceAccount": [
+                        "BUCKET_OWNER_ACCOUNT"
+                    ]
+                }
+            }
+        }
+    ]
+}
