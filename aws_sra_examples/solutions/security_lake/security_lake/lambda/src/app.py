@@ -310,7 +310,7 @@ def deploy_security_lake(params, regions):  # TODO ieviero is there a need to ch
             params["CONFIGURATION_ROLE_NAME"], "sra-enable-security-lake", params["DELEGATED_ADMIN_ACCOUNT_ID"]
         )  # TODO: (ieviero) use assume_role from sts class
         sl_client = delegated_admin_session.client("securitylake", region)
-        security_lake.create_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations)
+        security_lake.create_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations, region)
         sleep(15)
         LOGGER.info(f"Security Lake created in {region} with configurations {sl_configurations}")
 
@@ -345,7 +345,7 @@ def update_security_lake(params, regions):  # TODO: (ieviero) execute security_l
             # sleep(15)
         else:
             LOGGER.info(f"Security Lake not found in {region} region. Creating Security Lake...")
-            security_lake.create_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations)
+            security_lake.create_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations, region)
             sleep(15)
 
 
@@ -446,9 +446,6 @@ def process_subscriber(params, regions):  # TODO: how to update subscriber exter
         )
         sl_client = delegated_admin_session.client("securitylake", region)
         subscriber_exists, subscriber_id, external_id = security_lake.list_subscribers(sl_client, params["SUBSCRIBER_NAME"])
-        print("!!! subscriber_exists", subscriber_exists)
-        print("!!! subscriber_id", subscriber_id)
-        print("!!! external_id", external_id)
         
         if subscriber_exists:
             LOGGER.info(f"Subscriber '{params['SUBSCRIBER_NAME']}' exists in {region} region. Updating subscriber...")
@@ -564,12 +561,14 @@ def disable_security_lake(params: dict, regions: list, accounts) -> None:  #  TO
         params: Configuration Parameters
     """
     for region in regions:
-        delegated_admin_session = common.assume_role(
-            params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-subscribers", params["DELEGATED_ADMIN_ACCOUNT_ID"]
-        )
-        sl_client = delegated_admin_session.client("securitylake", region)
-        security_lake.delete_subscriber_notification(sl_client, params["SUBSCRIBER_NAME"], region)
-        security_lake.delete_subscriber(sl_client, params["SUBSCRIBER_NAME"], region)
+        if params["CREATE_SUBSCRIBER"]:
+            delegated_admin_session = common.assume_role(
+                params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-subscribers", params["DELEGATED_ADMIN_ACCOUNT_ID"]
+            )
+            sl_client = delegated_admin_session.client("securitylake", region)
+            if params["CREATE_NOTIFICATION"] != 'ignore':
+                security_lake.delete_subscriber_notification(sl_client, params["SUBSCRIBER_NAME"], region)
+            security_lake.delete_subscriber(sl_client, params["SUBSCRIBER_NAME"], region)
     security_lake.delete_security_lake(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], HOME_REGION, regions)
 
     delegated_admin_session = common.assume_role(

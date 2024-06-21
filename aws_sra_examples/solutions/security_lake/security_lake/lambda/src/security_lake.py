@@ -97,18 +97,31 @@ def check_organization_admin_enabled(delegated_admin_account_id: str, service_pr
         return False
 
 
-def check_data_lake_exists(sl_client, region):
-    try:
-        response = sl_client.list_data_lakes(regions=[region])
-        if not response["dataLakes"]:
-            return False
-        else:
-            return True
-    except ClientError as error:
-        LOGGER.error(f"Error calling list_data_lakes: {error}")
-        raise
-    
+def check_data_lake_exists(sl_client, region, max_retries=MAX_RETRY, initial_delay=5):
+    status = False
+    retry_count = 0
+    delay = initial_delay
 
+    while not status and retry_count < max_retries:
+        try:
+            response = sl_client.list_data_lakes(regions=[region])
+            if not response["dataLakes"]:
+                return status
+            elif response["dataLakes"][0]["createStatus"] == "COMPLETED":
+                LOGGER.info(f"Creation status ({region}): '{response['dataLakes'][0]['createStatus']}'")
+                status = True
+                return status
+        except:
+            LOGGER.info(f"Error checking data lake status for region: {region}. Retrying in {delay} seconds...")
+            sleep(delay)
+            delay *= 2
+            retry_count += 1
+
+    if not status:
+        LOGGER.info(f"Maximum retries reached. Data lake creation status for region {region} is not 'COMPLETED'.")
+    return status
+
+    
 #  register delegated admin for securitylake.amazonwas.com
 def register_delegated_admin(admin_account_id: str, region: str, service_principal) -> None:
     """Set the delegated admin account for the given region.
@@ -182,7 +195,7 @@ def set_configurations(region):  # TODO: (ieviero) create kms key
     return configurations
 
 
-def create_security_lake(sl_client, delegated_admin_acct, sl_configurations):
+def create_security_lake(sl_client, delegated_admin_acct, sl_configurations, region):
     retries = 5
     base_delay = 0.5
     max_delay = 30
@@ -194,10 +207,18 @@ def create_security_lake(sl_client, delegated_admin_acct, sl_configurations):
                 metaStoreManagerRoleArn='arn:aws:iam::' + delegated_admin_acct + ':role/AmazonSecurityLakeMetaStoreManagerV2',  # TODO: (ieviero) pass role arn
                 # tags=[{'key': 'string','value': 'string'},]
             )
-            api_call_details = {"API_Call": "securitylake:CreateDataLake", "API_Response": security_lake_response}   # TODO: ieviero get the status of SL from response
-            LOGGER.info(api_call_details)
-            data_lake_created = True
-            break
+            # api_call_details = {"API_Call": "securitylake:CreateDataLake", "API_Response": security_lake_response}   # TODO: ieviero get the status of SL from response
+            # LOGGER.info(api_call_details)
+            LOGGER.info(f"Creation status ({region}): '{security_lake_response['dataLakes'][0]['createStatus']}'")
+            if security_lake_response["dataLakes"][0]["createStatus"] == 'COMPLETED':
+                data_lake_created = True
+                break
+            else:
+                data_lake_created = check_data_lake_exists(sl_client, region)
+                # LOGGER.info(f"Create data lake status: {security_lake_response['dataLakes'][0]['createStatus']}")
+                if data_lake_created:  #  TODO: add if not created
+                    break
+
         except ClientError as e:
             error_code = e.response['Error']['Code']
             if error_code in ['BadRequestException','ConflictException']:
@@ -211,6 +232,7 @@ def create_security_lake(sl_client, delegated_admin_acct, sl_configurations):
 
     if not data_lake_created:
         LOGGER.error(f"Error creating security lake")
+        raise
 
 
 def check_log_source_exists(client, accounts, region, source, source_version):
@@ -315,7 +337,6 @@ def list_subscribers(sl_client, subscriber_name, next_token: str = EMPTY_STRING)
                     subscriber_id = subscriber['subscriberId']
                     external_id = subscriber['subscriberIdentity']['externalId']
                     subscriber_exists = True
-                    LOGGER.info(f"Subscriber {subscriber_name} found with {subscriber_id} id and {external_id}")
                     return subscriber_exists, subscriber_id, external_id
 
                 elif "nextToken" in response:
