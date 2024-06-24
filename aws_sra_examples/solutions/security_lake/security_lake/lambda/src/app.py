@@ -561,14 +561,20 @@ def disable_security_lake(params: dict, regions: list, accounts) -> None:  #  TO
         params: Configuration Parameters
     """
     for region in regions:
+        delegated_admin_session = common.assume_role(
+            params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-subscribers", params["DELEGATED_ADMIN_ACCOUNT_ID"]
+        )
+        sl_client = delegated_admin_session.client("securitylake", region)
         if params["CREATE_SUBSCRIBER"]:
-            delegated_admin_session = common.assume_role(
-                params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-subscribers", params["DELEGATED_ADMIN_ACCOUNT_ID"]
-            )
-            sl_client = delegated_admin_session.client("securitylake", region)
-            if params["CREATE_NOTIFICATION"] != 'ignore':
+            if params["CREATE_NOTIFICATION"] != 'ignore' and params["DATA_ACCESS_METHOD"] == "S3":
                 security_lake.delete_subscriber_notification(sl_client, params["SUBSCRIBER_NAME"], region)
             security_lake.delete_subscriber(sl_client, params["SUBSCRIBER_NAME"], region)
+        if params["SET_AUDIT_ACCT_DATA_SUBSCRIBER"]:  # TODO: (ieviero) parameterize/set global var for audit account subscriber name.
+            security_lake.delete_subscriber_notification(sl_client, "sra-audit-account-data-subscriber", region)
+            security_lake.delete_subscriber(sl_client, "sra-audit-account-data-subscriber", region)
+        if params["SET_AUDIT_ACCT_QUERY_SUBSCRIBER"]:
+            security_lake.delete_subscriber(sl_client, "sra-audit-account-query-subscriber", region)
+        
     security_lake.delete_security_lake(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], HOME_REGION, regions)
 
     delegated_admin_session = common.assume_role(

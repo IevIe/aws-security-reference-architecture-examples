@@ -160,7 +160,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest CloudTrail - Management events from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest CloudTrail - Management events from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: 'ALL'
@@ -168,7 +168,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest CloudTrail - Lambda Data events from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest CloudTrail - Lambda Data events from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: 'ALL'
@@ -176,7 +176,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest CloudTrail - S3 Data events from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest CloudTrail - S3 Data events from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: ''
@@ -184,7 +184,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest SecurityHub Findings from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest SecurityHub Findings from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: 'ALL'
@@ -192,7 +192,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest VPC Flow Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest VPC Flow Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: 'ALL'
@@ -200,7 +200,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest WAFv2 Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest WAFv2 Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: ''
@@ -208,7 +208,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest Amazon Route 53 resolver query logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest Amazon Route 53 resolver query logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: 'ALL'
@@ -216,7 +216,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to injest Amazon EKS Audit Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to ingest Amazon EKS Audit Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: 'ALL'
@@ -233,7 +233,7 @@ Parameters:
   pCreateKmsKey:
     AllowedValues: [true, false]
     Default: true
-    Description: (Optional) TODO
+    Description: (Optional) Create KMS Key to use for encrypting Security Lake S3 resources.  If set to 'false', files will be encrypted using S3 Managed key.
     Type: String
   pComplianceFrequency:
     ConstraintDescription: Compliance Frequency must be a number between 1 and 30, inclusive.
@@ -258,7 +258,7 @@ Parameters:
   pDelegatedAdminAccountId:
     AllowedPattern: '^\d{12}$'
     ConstraintDescription: Must be 12 digits
-    Description: Delegated administrator account ID - Log Archive todo
+    Description: Delegated administrator account ID - Log Archive account
     Type: String
   pEnabledRegions:
     AllowedPattern: '^$|^([a-z0-9-]{1,64})$|^(([a-z0-9-]{1,64},)*[a-z0-9-]{1,64})$'

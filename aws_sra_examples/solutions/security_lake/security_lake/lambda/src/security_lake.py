@@ -753,4 +753,4 @@ def deregister_administrator_organizations(delegated_admin_account_id: str, serv
 #             LOGGER.info(f"Unprocessed Account {unprocessed_account}")
 #             if account_record["AccountId"] == unprocessed_account["AccountId"] and unprocessed_account["Reason"] != "Account is already a member":
 #                 remaining_accounts.append(account_record)
-#     return remaining_accounts0000000000000000000000000000000000000000000000000000000000000000000000000000000
+#     return remaining_accounts
