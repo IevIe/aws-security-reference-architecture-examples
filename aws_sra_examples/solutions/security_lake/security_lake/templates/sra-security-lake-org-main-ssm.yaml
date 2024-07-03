@@ -248,7 +248,7 @@ Parameters:
   pOrgConfigurationSources:
     AllowedValues: ['', ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
     Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
-    Description: AWS log sources to enable for new member accounts in your organization
+    Description: (Optional) AWS log sources to enable for new member accounts in your organization. If 'Create Organization Configuration' parameter is set to 'true', then this parameter becomes required.
     Type: CommaDelimitedList
   pCreateOrganizationConfiguration:
     AllowedValues: ['true', 'false']

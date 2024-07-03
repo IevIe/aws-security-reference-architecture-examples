@@ -34,7 +34,6 @@ class sra_kms:
             home_region: Home region
         """
         self.logger = logger
-        self.KEY_DESCRIPTION: str = ("Config Delivery KMS Key")  # todo(liamschn): parameterize this description
 
     def define_key_policy(self, delegated_admin_acct, partition, region):
         """Define Config Delivery Key Policy.
@@ -82,6 +81,15 @@ class sra_kms:
                         "kms:GenerateDataKey"
                     ],
                     "Resource": "*"
+                },
+                {
+                    "Sid": "Enable IAM User Permissions",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "AWS": f"arn:{partition}:iam::{delegated_admin_acct}:root"
+                    },
+                    "Action": "kms:*",
+                    "Resource": "*",
                 },
             ],
         }
