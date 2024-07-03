@@ -182,27 +182,3 @@ def get_enabled_regions(customer_regions: str, control_tower_regions_only: bool 
         }
     )
     return enabled_regions
-
-
-def create_service_linked_role(
-    service_linked_role_name: str,
-    service_name: str,
-    description: str = "",
-    iam_client: IAMClient = None,
-) -> None:
-    """Create the service linked role, if it does not exist.
-
-    Args:
-        service_linked_role_name: Service Linked Role Name
-        service_name: AWS Service Name
-        description: Description
-        iam_client: IAMClient
-    """
-    if not iam_client:
-        iam_client = boto3.client("iam")
-    try:
-        response = iam_client.get_role(RoleName=service_linked_role_name)
-        api_call_details = {"API_Call": "iam:GetRole", "API_Response": response}
-        LOGGER.info(api_call_details)
-    except iam_client.exceptions.NoSuchEntityException:
-        iam_client.create_service_linked_role(AWSServiceName=service_name, Description=description)

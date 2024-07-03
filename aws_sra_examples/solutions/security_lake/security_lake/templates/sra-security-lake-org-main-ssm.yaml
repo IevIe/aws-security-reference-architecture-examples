@@ -45,7 +45,13 @@ Metadata:
           - pWafLogs
           - pRoute53Logs
           - pEksAuditLogs
-      
+
+      - Label:
+          default: Security Lake Configuration - Organization Configurations
+        Parameters:
+          - pCreateOrganizationConfiguration
+          - pOrgConfigurationSources
+
       - Label:
           default: Security Lake Configuration - Subscribers
         Parameters:
@@ -96,6 +102,10 @@ Metadata:
         default: Amazon EKS Audit Logs
       # pSources:
       #   default: Sources
+      pOrgConfigurationSources:
+        default: Sources for Organizaiton Configuration
+      pCreateOrganizationConfiguration:
+        default: Create Organization Configuration
       pSourceVersion:
         default: Log Source Version
       pSecurityLakeConfigurationRoleName:
@@ -219,7 +229,7 @@ Parameters:
     AllowedPattern: '^($|ALL|(\d{12})(,\s*\d{12})*)$'
     ConstraintDescription: 'Enter "ALL" or a comma-separated list of AWS account numbers without spaces, e.g., "123456789012,234567890123" to create log source. Leave empty to skip log source creation'
     Description:
-      Accounts to ingest Amazon EKS Audit Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
+      Accounts to injest Amazon EKS Audit Logs from. Choose ALL to enable for all accounts in your AWS Organization. To choose the accounts enter a comma
       seperated list of the AWS Account numbers.  Leave empty to skip log source creation.
     Type: CommaDelimitedList
     Default: 'ALL'
@@ -235,6 +245,16 @@ Parameters:
   #   Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
   #   Description: AWS log sources to ingest in all accounts
   #   Type: CommaDelimitedList
+  pOrgConfigurationSources:
+    AllowedValues: ['', ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
+    Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
+    Description: AWS log sources to enable for new member accounts in your organization
+    Type: CommaDelimitedList
+  pCreateOrganizationConfiguration:
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+    Description: Select whether to automatically enable Amazon Security Lake for new member accounts in your organization
+    Type: String
   pCreateKmsKey:
     AllowedValues: [true, false]
     Default: true
@@ -454,6 +474,10 @@ Resources:
         # pSources: !Join
         #     - ','
         #     - !Ref pSources
+        pCreateOrganizationConfiguration: !Ref pCreateOrganizationConfiguration
+        pOrgConfigurationSources: !Join
+            - ','
+            - !Ref pOrgConfigurationSources
         pCreateKmsKey: !Ref pCreateKmsKey
         pCloudTrailManagementEvents: !Join
           - ','

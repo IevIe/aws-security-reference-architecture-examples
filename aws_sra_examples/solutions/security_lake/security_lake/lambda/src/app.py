@@ -21,6 +21,7 @@ import security_lake
 import sra_iam
 import sra_ssm_params
 import sra_s3
+import sra_kms
 from crhelper import CfnResource
 from pathlib import Path
 import json
@@ -41,6 +42,7 @@ iam = sra_iam.sra_iam(LOGGER)
 ssm = sra_ssm_params.sra_ssm_params(LOGGER)
 helper = CfnResource(json_logging=True, log_level=log_level, boto_level="CRITICAL", sleep_on_delete=120)
 s3 = sra_s3.sra_s3(LOGGER)
+kms = sra_kms.sra_kms(LOGGER)
 
 UNEXPECTED = "Unexpected!"
 SERVICE_NAME = "securitylake.amazonaws.com"
@@ -50,6 +52,8 @@ REPLICATION_ROLE_NAME = "AmazonSecurityLakeS3ReplicationRole"
 REPLICATION_ROLE_POLICY_NAME = "AmazonSecurityLakeS3ReplicationRolePolicy"
 HOME_REGION = ssm.get_home_region()
 AUDIT_ACCT_ID = ssm.get_security_acct()
+AUDIT_ACCT_DATA_SUBSCRIBER = "sra-audit-account-data-subscriber"
+AUDIT_ACCT_QUERY_SUBSCRIBER = "sra-audit-account-query-subscriber"
 ATHENA_QUERY_BUCKET_NAME = "sra-security-lake-query-results"
 
 
@@ -80,9 +84,9 @@ def process_add_event(params: dict, regions: list, accounts: list) -> None:
         LOGGER.info("...Create Security Lake")
         create_security_lake(params, regions, accounts)
         if params["SET_AUDIT_ACCT_DATA_SUBSCRIBER"]:
-            set_audit_acct_as_data_subscriber(params, regions, "sra-audit-account-data-subscriber")
+            set_audit_acct_as_data_subscriber(params, regions, AUDIT_ACCT_DATA_SUBSCRIBER)
         if params["SET_AUDIT_ACCT_QUERY_SUBSCRIBER"]:
-            set_audit_acct_as_query_subscriber(params, regions, "sra-audit-account-query-subscriber")
+            set_audit_acct_as_query_subscriber(params, regions, AUDIT_ACCT_QUERY_SUBSCRIBER)
         LOGGER.info("...ADD_COMPLETE")
         return
 
@@ -110,9 +114,9 @@ def process_update_event(params: dict, regions: list, accounts: list) -> None:
         if params["CREATE_SUBSCRIBER"]:
             process_subscriber(params, regions)
         if params["SET_AUDIT_ACCT_DATA_SUBSCRIBER"]:
-            set_audit_acct_as_data_subscriber(params, regions, "sra-audit-account-data-subscriber")
+            set_audit_acct_as_data_subscriber(params, regions, AUDIT_ACCT_DATA_SUBSCRIBER)
         if params["SET_AUDIT_ACCT_QUERY_SUBSCRIBER"]:
-            set_audit_acct_as_query_subscriber(params, regions, "sra-audit-account-query-subscriber")
+            set_audit_acct_as_query_subscriber(params, regions, AUDIT_ACCT_QUERY_SUBSCRIBER)
         LOGGER.info("...UPDATE_COMPLETE")
         return
 
@@ -199,7 +203,7 @@ def get_validated_parameters(event: Dict[str, Any]) -> dict:  # TODO: (ieviero) 
     actions = {"Create": "Add", "Update": "Update", "Delete": "Remove"}
     params["action"] = actions[event.get("RequestType", "Create")]
     true_false_pattern = r"^true|false$"
-    subscriber_log_source_pattern=r"(?i)^((ROUTE53|VPC_FLOW|SH_FINDINGS|CLOUD_TRAIL_MGMT|LAMBDA_EXECUTION|S3_DATA|EKS_AUDIT|WAF),?){0,7}($|ROUTE53|VPC_FLOW|SH_FINDINGS|CLOUD_TRAIL_MGMT|LAMBDA_EXECUTION|S3_DATA|EKS_AUDIT|WAF){1}$"
+    log_source_pattern=r"(?i)^((ROUTE53|VPC_FLOW|SH_FINDINGS|CLOUD_TRAIL_MGMT|LAMBDA_EXECUTION|S3_DATA|EKS_AUDIT|WAF),?){0,7}($|ROUTE53|VPC_FLOW|SH_FINDINGS|CLOUD_TRAIL_MGMT|LAMBDA_EXECUTION|S3_DATA|EKS_AUDIT|WAF){1}$"
     version_pattern = r"^[0-9.]+$"
 
     # Required Parameters
@@ -216,6 +220,7 @@ def get_validated_parameters(event: Dict[str, Any]) -> dict:  # TODO: (ieviero) 
     parameter_pattern_validator("SET_AUDIT_ACCT_QUERY_SUBSCRIBER", params.get("SET_AUDIT_ACCT_QUERY_SUBSCRIBER"), pattern=true_false_pattern)
     parameter_pattern_validator("CREATE_SUBSCRIBER", params.get("CREATE_SUBSCRIBER"), pattern=true_false_pattern)
     parameter_pattern_validator("SOURCE_VERSION", params.get("SOURCE_VERSION"), pattern=version_pattern)
+    parameter_pattern_validator("SET_ORG_CONFIGURATION", params.get("SET_ORG_CONFIGURATION"), pattern=true_false_pattern)
 
     # Optional Parameters
     parameter_pattern_validator("SUBSCRIBER_NAME", params.get("SUBSCRIBER_NAME"), pattern=r"^$|^[a-zA-Z][-a-zA-Z0-9]*$", is_optional=True)
@@ -232,7 +237,7 @@ def get_validated_parameters(event: Dict[str, Any]) -> dict:  # TODO: (ieviero) 
     parameter_pattern_validator(
         "SUBSCRIBER_LOG_SOURCES",
         params.get("SUBSCRIBER_LOG_SOURCES"),
-        pattern=subscriber_log_source_pattern,
+        pattern=log_source_pattern,
         is_optional=True,
     )
     parameter_pattern_validator("SUBSCRIBER_ACCT", params.get("SUBSCRIBER_ACCT"), pattern=r"^\d{12}$", is_optional=True)
@@ -250,6 +255,7 @@ def get_validated_parameters(event: Dict[str, Any]) -> dict:  # TODO: (ieviero) 
     parameter_pattern_validator("S3_DATA", params.get("S3_DATA"), pattern=r"^($|ALL|(\d{12})(,\s*\d{12})*)$", is_optional=True)
     parameter_pattern_validator("EKS_AUDIT", params.get("EKS_AUDIT"), pattern=r"^($|ALL|(\d{12})(,\s*\d{12})*)$", is_optional=True)
     parameter_pattern_validator("WAF", params.get("WAF"), pattern=r"^($|ALL|(\d{12})(,\s*\d{12})*)$", is_optional=True)
+    parameter_pattern_validator("ORG_CONFIGURATION_SOURCES", params.get("ORG_CONFIGURATION_SOURCES"), pattern=log_source_pattern, is_optional=True)
 
     #  Convert true/false string parameters to boolean
     params.update({"CREATE_SUBSCRIBER": (params["CREATE_SUBSCRIBER"] == "true")})
@@ -257,8 +263,33 @@ def get_validated_parameters(event: Dict[str, Any]) -> dict:  # TODO: (ieviero) 
     params.update({"SET_AUDIT_ACCT_QUERY_SUBSCRIBER": (params["SET_AUDIT_ACCT_QUERY_SUBSCRIBER"] == "true")})
     params.update({"CREATE_KMS_KEY": (params["CREATE_KMS_KEY"] == "true")})
     params.update({"CONTROL_TOWER_REGIONS_ONLY": (params["CONTROL_TOWER_REGIONS_ONLY"] == "true")})
+    params.update({"SET_ORG_CONFIGURATION": (params["SET_ORG_CONFIGURATION"] == "true")})
 
     return params
+
+# KMSKMS
+def create_kms_key(configuration_role, account, region):
+    """Create KMS key."""
+    LOGGER.info("Checking/deploying KMS resources...")
+    key_alias = f"alias/sra-security-lake-{account}-{region}"
+    delegated_admin_session = common.assume_role(configuration_role, "sra-configure-security-lake", account)
+    kms_client = delegated_admin_session.client("kms", region)
+    alias_exists, alias_info = kms.check_alias_exists(kms_client, key_alias)
+    if alias_exists:
+        LOGGER.info(f"Alias {key_alias} already exists:\n{alias_info}")
+    else:
+        LOGGER.info(f"Alias {key_alias} does not exist.  Creating key and alias...")
+        key_policy = kms.define_key_policy(account, PARTITION, region)
+        key_info = kms.create_kms_key(kms_client, key_policy, "SRA Security Lake KMS key")
+        print("!!!!!!", key_info)
+        print("!!!!!! key arn", key_info["Arn"])
+        key_id = key_info["KeyId"]
+        alias_created = kms.create_alias(kms_client, key_alias, key_id)
+        if alias_created:
+            LOGGER.info(f"Alias {key_alias} created")
+        kms.enable_key_rotation(kms_client, key_id)
+        key_arn = f"arn:aws:kms:{region}:{account}:key/{key_id}"
+        return key_arn
 
 
 def create_meta_store_manager_role(iam_client):  # TODO: should partition be a parameter?
@@ -284,15 +315,13 @@ def create_security_lake(params: dict, regions: list, accounts: list) -> None:
         regions: list of regions
         accounts: list of accounts
     """
-
-    for account in accounts:
-        security_lake.create_service_linked_role(account["AccountId"], params["CONFIGURATION_ROLE_NAME"])
-
     delegated_admin_session = common.assume_role(
         params["CONFIGURATION_ROLE_NAME"], "sra-enable-security-lake", params["DELEGATED_ADMIN_ACCOUNT_ID"]
     )  # TODO: (Ieviero) add sts class instead of common
     iam_client = delegated_admin_session.client("iam", HOME_REGION)
     create_meta_store_manager_role(iam_client)
+    for region in regions:
+        create_kms_key(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], region)
 
     security_lake.register_delegated_admin(params["DELEGATED_ADMIN_ACCOUNT_ID"], HOME_REGION, SERVICE_NAME)
     deploy_security_lake(params, regions)
@@ -313,9 +342,10 @@ def deploy_security_lake(params, regions):  # TODO ieviero is there a need to ch
         security_lake.create_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations, region)
         sleep(15)
         LOGGER.info(f"Security Lake created in {region} with configurations {sl_configurations}")
+        process_org_configuration(sl_client, params["SET_ORG_CONFIGURATION"], params["ORG_CONFIGURATION_SOURCES"], region, params["SOURCE_VERSION"])
 
 
-def build_subscriber_log_sources(sources_param: str) -> list:
+def build_log_sources(sources_param: str) -> list:
     """Build list of log sources.
 
     Args:
@@ -332,7 +362,9 @@ def build_subscriber_log_sources(sources_param: str) -> list:
 
 def update_security_lake(params, regions):  # TODO: (ieviero) execute security_lake.update_security_lake only if changes introduced
     for region in regions:
-        sl_configurations = security_lake.set_configurations(region)
+        # TODO ieveiro remove after testing
+        key_arn = create_kms_key(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], region)
+        sl_configurations = security_lake.set_configurations(region, key_arn)
         LOGGER.info(f"Checking if Security Lake exists in {region} region...")
         delegated_admin_session = common.assume_role(
             params["CONFIGURATION_ROLE_NAME"], "sra-update-security-lake", params["DELEGATED_ADMIN_ACCOUNT_ID"]
@@ -341,12 +373,29 @@ def update_security_lake(params, regions):  # TODO: (ieviero) execute security_l
         lake_exists = security_lake.check_data_lake_exists(sl_client, region)
         if lake_exists:
             LOGGER.info(f"Security Lake already exists in {region} region. Updating...")
-            # security_lake.update_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations)
-            # sleep(15)
+            security_lake.update_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations)
+            sleep(15)
         else:
             LOGGER.info(f"Security Lake not found in {region} region. Creating Security Lake...")
             security_lake.create_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations, region)
             sleep(15)
+        process_org_configuration(sl_client, params["SET_ORG_CONFIGURATION"], params["ORG_CONFIGURATION_SOURCES"], region, params["SOURCE_VERSION"])
+
+
+def process_org_configuration(sl_client, set_org_configuration, org_confiugration_sources, region, source_version):
+    org_configuration_exists, exisiting_org_configuration = security_lake.get_org_configuration(sl_client)
+    if set_org_configuration:
+        sources = build_log_sources(org_confiugration_sources)
+        if not org_configuration_exists:
+            LOGGER.info(f"Creating Organization Configuration in {region} region...")
+            security_lake.create_organization_configuration(sl_client, region, sources, source_version)
+        else:
+            LOGGER.info(f"Updating Organization Configuration in {region} region...")
+            security_lake.update_organization_configuration(sl_client, region, sources, source_version, exisiting_org_configuration)  # TODO add that delete action
+    else:
+        if org_configuration_exists:
+            LOGGER.info(f"Deleting Organization Configuration in {region} region...")
+            security_lake.delete_organization_configuration(sl_client, region, exisiting_org_configuration)
 
 
 def add_update_log_sources(params, regions, org_accounts):
@@ -437,7 +486,7 @@ def build_subscriber_regions(subscriber_regions_param, security_lake_regions):
 
 
 def process_subscriber(params, regions):  # TODO: how to update subscriber external_id? 
-    sources = build_subscriber_log_sources(params["SUBSCRIBER_LOG_SOURCES"])
+    sources = build_log_sources(params["SUBSCRIBER_LOG_SOURCES"])
     subscriber_regions = build_subscriber_regions(params["SUBSCRIBER_REGIONS"], regions)
 
     for region in subscriber_regions:
@@ -554,7 +603,7 @@ def create_athena_query_bucket(configuration_role_name, subscriber_acct_id, regi
 #         )
 
 
-def disable_security_lake(params: dict, regions: list, accounts) -> None:  #  TODO: (ieviero) should parameter or event "Delete" be added?
+def disable_security_lake(params: dict, regions: list, accounts) -> None:  #  TODO: (ieviero) should parameter or event "Delete" be added? Need to address subscriber deletion workflow
     """Disable the security lake service.
 
     Args:
@@ -570,31 +619,34 @@ def disable_security_lake(params: dict, regions: list, accounts) -> None:  #  TO
                 security_lake.delete_subscriber_notification(sl_client, params["SUBSCRIBER_NAME"], region)
             security_lake.delete_subscriber(sl_client, params["SUBSCRIBER_NAME"], region)
         if params["SET_AUDIT_ACCT_DATA_SUBSCRIBER"]:  # TODO: (ieviero) parameterize/set global var for audit account subscriber name.
-            security_lake.delete_subscriber_notification(sl_client, "sra-audit-account-data-subscriber", region)
-            security_lake.delete_subscriber(sl_client, "sra-audit-account-data-subscriber", region)
+            security_lake.delete_subscriber_notification(sl_client, AUDIT_ACCT_DATA_SUBSCRIBER, region)
+            security_lake.delete_subscriber(sl_client, AUDIT_ACCT_DATA_SUBSCRIBER, region)
         if params["SET_AUDIT_ACCT_QUERY_SUBSCRIBER"]:
-            security_lake.delete_subscriber(sl_client, "sra-audit-account-query-subscriber", region)
-        
-    security_lake.delete_security_lake(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], HOME_REGION, regions)
+            security_lake.delete_subscriber(sl_client, AUDIT_ACCT_QUERY_SUBSCRIBER, region)
 
-    delegated_admin_session = common.assume_role(
-        params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-roles", params["DELEGATED_ADMIN_ACCOUNT_ID"]
-    )  # todo: add sts class, initiate iam_client and pass it
-    iam_client = delegated_admin_session.client("iam", HOME_REGION)
+        org_configuration_exists, exisiting_org_configuration = security_lake.get_org_configuration(sl_client)
+        if org_configuration_exists:
+            LOGGER.info(f"Deleting Organization Configuration in {region} region...")
+            security_lake.delete_organization_configuration(sl_client, region, exisiting_org_configuration)   
+    # security_lake.delete_security_lake(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], HOME_REGION, regions)
 
-    meta_store_policy_arn: str = f"arn:{PARTITION}:iam::{PARTITION}:policy/service-role/{META_STORE_MANAGER_POLICY}"
-    delete_iam_resources(iam_client, META_STORE_MANAGER_ROLE, meta_store_policy_arn)
+    # delegated_admin_session = common.assume_role(
+    #     params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-roles", params["DELEGATED_ADMIN_ACCOUNT_ID"])  # todo: add sts class, initiate iam_client and pass it
+    # iam_client = delegated_admin_session.client("iam", HOME_REGION)
 
-    for account in accounts:
-        session = common.assume_role(
-            params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-slr", account["AccountId"]
-        )  # TODO: add sts class, initiate iam_client and pass it
-        iam_client = session.client("iam", HOME_REGION)
-        deletion_task_id = iam.delete_service_linked_role(iam_client, "AWSServiceRoleForSecurityLake")
-        sleep(2)
-        iam.get_deletion_status(iam_client, deletion_task_id)  # TODO: (ieviero) update get_deletion_status function
+    # meta_store_policy_arn: str = f"arn:{PARTITION}:iam::{PARTITION}:policy/service-role/{META_STORE_MANAGER_POLICY}"
+    # delete_iam_resources(iam_client, META_STORE_MANAGER_ROLE, meta_store_policy_arn)
 
-    security_lake.deregister_administrator_organizations(params["DELEGATED_ADMIN_ACCOUNT_ID"], SERVICE_NAME)
+    # for account in accounts:
+    #     session = common.assume_role(
+    #         params["CONFIGURATION_ROLE_NAME"], "sra-delete-security-lake-slr", account["AccountId"]
+    #     )  # TODO: add sts class, initiate iam_client and pass it
+    #     iam_client = session.client("iam", HOME_REGION)
+    #     deletion_task_id = iam.delete_service_linked_role(iam_client, "AWSServiceRoleForSecurityLake")
+    #     sleep(2)
+    #     iam.get_deletion_status(iam_client, deletion_task_id)  # TODO: (ieviero) update get_deletion_status function
+
+    # security_lake.deregister_administrator_organizations(params["DELEGATED_ADMIN_ACCOUNT_ID"], SERVICE_NAME)
     # disable_aws_service_access(SERVICE_NAME)
 
 

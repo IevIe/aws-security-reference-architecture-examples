@@ -34,6 +34,8 @@ Metadata:
           - pSecurityLakeConfigurationRoleName
           - pDelegatedAdminAccountId
           - pEnabledRegions
+          - pCreateOrganizationConfiguration
+          - pOrgConfigurationSources
           - pCreateKmsKey
           - pCloudTrailManagementEvents
           - pCloudTrailLambdaDataEvents
@@ -148,6 +150,10 @@ Metadata:
         default: Subscriber Principal Account ID
       pCreateSubscriberNotification:
         default: Create Subscriber Notification
+      pOrgConfigurationSources:
+        default: Sources for Organizaiton Configuration
+      pCreateOrganizationConfiguration:
+        default: Create Organization Configuration
 
 Parameters:
   pSourceVersion:
@@ -382,6 +388,17 @@ Parameters:
     AllowedValues: ['ignore', 'SQS']
     Default: 'ignore'
     Description: (Optional) Choose 'SQS' to create a new Subscriber Notification. Choose 'ignore' to skip Subscriber Notification creation.
+    Type: String
+
+  pOrgConfigurationSources:
+    AllowedValues: ['', ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
+    Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
+    Description: (Optional) AWS log sources to enable for new member accounts in your organization. If 'Create Organization Configuration' parameter is set to 'true', then this parameter becomes required.
+    Type: CommaDelimitedList
+  pCreateOrganizationConfiguration:
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+    Description: Select whether to automatically enable Amazon Security Lake for new member accounts in your organization
     Type: String
 
 Conditions:
@@ -643,6 +660,10 @@ Resources:
               - !Ref pSubscriberLogSources
           SUBSCRIBER_ACCT: !Ref pSubscriberPrincipalAccountId
           CREATE_NOTIFICATION: !Ref pCreateSubscriberNotification
+          SET_ORG_CONFIGURATION: !Ref pCreateOrganizationConfiguration
+          ORG_CONFIGURATION_SOURCES: !Join
+              - ','
+              - !Ref pOrgConfigurationSources
       Tags:
         - Key: sra-solution
           Value: !Ref pSRASolutionName
@@ -709,6 +730,10 @@ Resources:
           - !Ref pSubscriberLogSources
       SUBSCRIBER_ACCT: !Ref pSubscriberPrincipalAccountId
       CREATE_NOTIFICATION: !Ref pCreateSubscriberNotification
+      SET_ORG_CONFIGURATION: !Ref pCreateOrganizationConfiguration
+      ORG_CONFIGURATION_SOURCES: !Join
+          - ','
+          - !Ref pOrgConfigurationSources
 
   rSecurityLakeOrgDLQ:
     Type: AWS::SQS::Queue
