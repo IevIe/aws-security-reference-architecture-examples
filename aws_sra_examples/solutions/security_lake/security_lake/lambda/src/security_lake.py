@@ -186,7 +186,7 @@ def create_security_lake(sl_client, delegated_admin_acct, sl_configurations, reg
         try:
             security_lake_response = sl_client.create_data_lake(
                 configurations= sl_configurations,
-                metaStoreManagerRoleArn='arn:aws:iam::' + delegated_admin_acct + ':role/AmazonSecurityLakeMetaStoreManagerV2',  # TODO: (ieviero) pass role arn
+                metaStoreManagerRoleArn='arn:aws:iam::' + delegated_admin_acct + ':role/AmazonSecurityLakeMetaStoreManagerV2',  # TODO: (ieviero) pass role arn, edit partition
                 # tags=[{'key': 'string','value': 'string'},]
             )
             # api_call_details = {"API_Call": "securitylake:CreateDataLake", "API_Response": security_lake_response}   # TODO: ieviero get the status of SL from response
@@ -307,9 +307,8 @@ def get_org_configuration(sl_client):
 def create_organization_configuration(sl_client, region, org_sources, source_version):
     sources = set_org_configuration_log_sources(org_sources, source_version)
     try:
-        response = sl_client.create_data_lake_organization_configuration(
+        sl_client.create_data_lake_organization_configuration(
             autoEnableNewAccount=[{'region': region, 'sources': sources},])
-        print("!!!! ORG CONFIG:", response)
     except ClientError as e:
         LOGGER.error(f"Error calling CreateDataLakeOrganizationConfiguration: {e}.")
         raise
@@ -330,27 +329,18 @@ def update_security_lake(sl_client, delegated_admin_acct, sl_configurations):  #
 
 
 def set_sources_to_disable(org_configruations, region):
-    enabled_sources = []
     sources_to_disable = []
     for configuration in org_configruations:
         if configuration['region'] == region:
             LOGGER.info(f"Sources: {configuration['sources']}")
             for source in configuration['sources']:
-                enabled_sources.append(source)
-                print("!!! ENABLED SOURCES", enabled_sources)
-    # for source in enabled_sources: 
-    #     print("!!! SOURCE", source)
-    #     if source['sourceName'] not in org_sources:
-    #         sources_to_disable.append(source)
-    #         print("!!! DELETE SOURCES", sources_to_disable)
-    #     return sources_to_disable
-    return enabled_sources
+                sources_to_disable.append(source)
+
+    return sources_to_disable
 
 
 #  Update org configurations
 def update_organization_configuration(sl_client, region, org_sources, source_version, exisiting_org_configuration):
-    # sources_to_disable = set_sources_to_disable(exisiting_org_configuration, org_sources, region)
-    # if sources_to_disable:
     delete_organization_configuration(sl_client, region, exisiting_org_configuration)
     sources = set_org_configuration_log_sources(org_sources, source_version)
     try:
@@ -363,16 +353,14 @@ def update_organization_configuration(sl_client, region, org_sources, source_ver
         raise
 
 
-# TODO: (ieviero)
 def delete_organization_configuration(sl_client, region, exisiting_org_configuration):
-    # check if configurations exist
-    # sources = set_org_configuration_log_sources(org_sources, source_version)
     sources_to_disable = set_sources_to_disable(exisiting_org_configuration, region)
     if sources_to_disable:
         try:
             delete_response = sl_client.delete_data_lake_organization_configuration(
                 autoEnableNewAccount=[{'region': region, 'sources': sources_to_disable},])
-            print(delete_response)
+            api_call_details = {"API_Call": "securitylake:DeleteDataLakeOrganizationConfiguration", "API_Response": delete_response}
+            LOGGER.info(api_call_details)
         except ClientError as e:
             LOGGER.error(f"Error calling CreateDataLakeOrganizationConfiguration: {e}.")
             raise
@@ -611,6 +599,47 @@ def create_table_in_data_catalog(configuration_role_name, region, subscriber_acc
                 raise
 
 
+def set_data_lake_permissions(sl_client, data_lake_admin, region):
+    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share", subscriber_acct)
+    lf_client = subscriber_session.client("lakeformation", region)
+    try:
+        response = sl_client.create_data_lake_admin(
+            dataLakeAdmin={
+                'dataLakeAdminArn': data_lake_admin
+            },
+            region=region
+        )
+        api_call_details = {"API_Call": "securitylake:CreateDataLakeAdmin", "API_Response": response}
+        LOGGER.info(api_call_details)
+    except ClientError as e:
+        LOGGER.error(f"Error calling CreateDataLakeAdmin {e}.")
+        raise
+
+response = client.grant_permissions(
+    CatalogId='string',
+    Principal={
+        'DataLakePrincipalIdentifier': f'arn:aws:iam::{account}:role/sra-security-lake-configuration'
+    },
+    Resource={
+        'Database': {
+            'CatalogId': account,
+            'Name': db_name
+        }
+    },
+    Permissions=[
+        'ALL',
+        'ALTER',
+        'DROP',
+        'DESCRIBE',
+        'CREATE_TABLE',
+    ],
+    PermissionsWithGrantOption=[
+        'ALL'|'SELECT'|'ALTER'|'DROP'|'DELETE'|'INSERT'|'DESCRIBE'|'CREATE_DATABASE'|'CREATE_TABLE'|'DATA_LOCATION_ACCESS'|'CREATE_LF_TAG'|'ASSOCIATE'|'GRANT_WITH_LF_TAG_EXPRESSION',
+    ]
+)
+
+
+
 def set_audit_subscriber_log_sources(client, region, source_version):  # TODO: use to get all enabled sources
     log_sources = ["ROUTE53", "VPC_FLOW", "SH_FINDINGS", "CLOUD_TRAIL_MGMT", "LAMBDA_EXECUTION", "S3_DATA", "EKS_AUDIT", "WAF"]
     existing_log_sources = []
@@ -734,59 +763,6 @@ def deregister_administrator_organizations(delegated_admin_account_id: str, serv
     except ORG_CLIENT.exceptions.AccountNotRegisteredException:
         LOGGER.info(f"Account: {delegated_admin_account_id} not registered for {service_principal}")
 
-# def create_sec_lake_in_rollup_regions(region, delegated_admin_acct, configuration_role_name, sl_configurations):
-    
-#     delegated_admin_session = common.assume_role(configuration_role_name, "sra-enable-security-lake", delegated_admin_acct)  # TODO: (ieviero) use assume_role from sts class
-#     sl_client = delegated_admin_session.client("securitylake", region)
-    
-#     security_lake = sl_client.create_data_lake(
-#         configurations= sl_configurations,
-#         metaStoreManagerRoleArn='arn:aws:iam::' + delegated_admin_acct + ':role/AmazonSecurityLakeMetaStoreManagerV2', # TODO: (ieviero) pass role arn
-#     )
-#     LOGGER.info(f"create_sec_lake_in_rollup_regions: {security_lake}")
-
-
-# def disable_organization_admin_account(regions: list) -> None:
-#     """Disable the organization admin account.
-
-#     Args:
-#         regions: AWS Region List
-#     """
-#     for region in regions:
-#         sl_client: SecurityLakeClient = MANAGEMENT_ACCOUNT_SESSION.client("securitylake", region)
-#         response = sl_client.disable_organization_admin_account()
-#         api_call_details = {"API_Call": "securitylake:DeregisterDataLakeDelegatedAdministrator", "API_Response": response}
-#         LOGGER.info(api_call_details)
-#         LOGGER.info(f"Admin Account Disabled in {region}")
-#         sleep(20)
-
-
-# def set_auto_enable_security_lake_in_org(
-#     region: str,
-#     sl_client: SecurityLakeClient,
-#     sources: list,
-# ) -> None:
-#     """Set auto enable for security lake in organizations.
-
-#     Args:
-#         region: AWS Region
-#         sl_client: boto3 SecurityLakeClient client
-
-#     Raises:
-#         Exception: Generic Exception
-#     """
-#     try:
-#         LOGGER.info(f"configuring auto-enable security lake CreateDataLakeOrganizationConfiguration in region {region} for {sources}")
-#         create_organization_configuration_response = sl_client.create_data_lake_organization_configuration()
-#         api_call_details = {
-#             "API_Call": "SecurityLakeClient:CreateDataLakeOrganizationConfiguration",
-#             "API_Response": update_organization_configuration_response,
-#         }
-#         LOGGER.info(api_call_details)
-#         LOGGER.info(f"security lake organization auto-enable configuration updated in {region}")
-#     except Exception as e:
-#         LOGGER.error(f"Error calling UpdateOrganizationConfiguration {e}.\n Graph arn: {graph_arn}, region {region}")
-#         raise
 
 # def get_unprocessed_account_details(create_members_response: CreateMembersResponseTypeDef, accounts: list) -> list:
 #     """Get unprocessed account details.
@@ -812,52 +788,3 @@ def deregister_administrator_organizations(delegated_admin_account_id: str, serv
 #             if account_record["AccountId"] == unprocessed_account["AccountId"] and unprocessed_account["Reason"] != "Account is already a member":
 #                 remaining_accounts.append(account_record)
 #     return remaining_accounts
-
-
-# def set_sources_to_disable(org_configruations, org_sources, region):
-#     enabled_sources = []
-#     sources_to_disable = []
-#     for configuration in org_configruations:
-#         if configuration['region'] == region:
-#             LOGGER.info(f"Sources: {configuration['sources']}")
-#             for source in configuration['sources']:
-#                 enabled_sources.append(source)
-#                 print("!!! ENABLED SOURCES", enabled_sources)
-#     for source in enabled_sources: 
-#         print("!!! SOURCE", source)
-#         if source['sourceName'] not in org_sources:
-#             sources_to_disable.append(source)
-#             print("!!! DELETE SOURCES", sources_to_disable)
-#         return sources_to_disable
-#     return sources_to_disable
-
-
-# #  Update org configurations
-# def update_organization_configuration(sl_client, region, org_sources, source_version, exisiting_org_configuration):
-#     sources_to_disable = set_sources_to_disable(exisiting_org_configuration, org_sources, region)
-#     if sources_to_disable:
-#         delete_organization_configuration(sl_client, region, sources_to_disable)
-#     sources = set_org_configuration_log_sources(org_sources, source_version)
-#     try:
-#         response = sl_client.create_data_lake_organization_configuration(
-#             autoEnableNewAccount=[{'region': region, 'sources': sources},])
-#         api_call_details = {"API_Call": "securitylake:CreateDataLakeOrganizationConfiguration", "API_Response": response}
-#         LOGGER.info(api_call_details)
-#     except ClientError as e:
-#         LOGGER.error(f"Error calling CreateDataLakeOrganizationConfiguration: {e}.")
-#         raise
-
-
-# # TODO: (ieviero)
-# def delete_organization_configuration(sl_client, region, org_sources, exisiting_org_configuration):
-#     # check if configurations exist
-#     # sources = set_org_configuration_log_sources(org_sources, source_version)
-#     sources_to_disable = set_sources_to_disable(exisiting_org_configuration, org_sources, region)
-#     if sources_to_disable:
-#         try:
-#             delete_response = sl_client.delete_data_lake_organization_configuration(
-#                 autoEnableNewAccount=[{'region': region, 'sources': org_sources},])
-#             print(delete_response)
-#         except ClientError as e:
-#             LOGGER.error(f"Error calling CreateDataLakeOrganizationConfiguration: {e}.")
-#             raise

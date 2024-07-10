@@ -200,3 +200,25 @@ class sra_iam:
         self.LOGGER.info(f"Deletion status: {status}")
         return status
 
+    def create_service_linked_role(
+        self,
+        service_linked_role_name,
+        service_name,
+        description,
+        iam_client,
+    ) -> None:
+        """Create the service linked role, if it does not exist.
+
+        Args:
+            self: Self
+            service_linked_role_name: Service Linked Role Name
+            service_name: AWS Service Name
+            description: Description
+            iam_client: IAMClient
+        """
+        try:
+            response = iam_client.get_role(RoleName=service_linked_role_name)
+            api_call_details = {"API_Call": "iam:GetRole", "API_Response": response}
+            self.LOGGER.info(api_call_details)
+        except iam_client.exceptions.NoSuchEntityException:
+            iam_client.create_service_linked_role(AWSServiceName=service_name, Description=description)

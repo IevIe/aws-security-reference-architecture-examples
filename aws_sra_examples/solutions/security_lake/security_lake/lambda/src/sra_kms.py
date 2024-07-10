@@ -73,29 +73,22 @@ class sra_kms:
                     "Sid": "Allow use of the key",
                     "Effect": "Allow",
                     "Principal": {
-                            "AWS": f"arn:aws:iam::{delegated_admin_acct}:role/AmazonSecurityLakeMetaStoreManagerV2"
+                            "AWS": f"arn:{partition}:iam::{delegated_admin_acct}:role/aws-service-role/lakeformation.amazonaws.com/AWSServiceRoleForLakeFormationDataAccess"
                         },
                     "Action": [
                         "kms:CreateGrant",
                         "kms:DescribeKey",
-                        "kms:GenerateDataKey"
+                        "kms:GenerateDataKey",
+                        "kms:Decrypt"
                     ],
                     "Resource": "*"
-                },
-                {
-                    "Sid": "Enable IAM User Permissions",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "AWS": f"arn:{partition}:iam::{delegated_admin_acct}:root"
-                    },
-                    "Action": "kms:*",
-                    "Resource": "*",
-                },
-            ],
+                }
+            ]
         }
 
         self.logger.info(f"Key Policy:\n{json.dumps(policy_template)}")
         return json.dumps(policy_template)
+
 
     def create_kms_key(self, kms_client, key_policy, key_description):
         """Create KMS key.
@@ -114,7 +107,6 @@ class sra_kms:
             KeyUsage="ENCRYPT_DECRYPT",
             CustomerMasterKeySpec="SYMMETRIC_DEFAULT",
         )
-        # return key_response["KeyMetadata"]["KeyId"]
         return key_response["KeyMetadata"]
 
     def create_alias(self, kms_client, alias_name, target_key_id):
@@ -210,3 +202,54 @@ class sra_kms:
         except ClientError as e:
             self.logger.info(f"Unexpected error: {e}")
             return False, None
+
+    def get_key_id(self, kms_client, key_alias):
+        """Get KMS key id from alias.
+
+        Args:
+            kms_client: boto3 kms client
+            key_alias: key alias
+
+        Returns:
+            Key id
+        """
+        try:
+            response = kms_client.describe_key(KeyId=key_alias)
+            return response["KeyMetadata"]["KeyId"]
+        except kms_client.exceptions.NotFoundException:
+            self.logger.info(f"KMS key with alias {key_alias} does not exist")
+            return None
+        
+    def get_policy_name(self, kms_client, key_id):
+        """Get KMS key policy name.
+
+        Args:
+            key_id: key id
+
+        Returns:
+            Policy name
+        """
+        try:
+            response = kms_client.list_key_policies(KeyId=key_id)
+            policy_name = response["PolicyNames"][0]
+            return policy_name
+        except ClientError as e:
+            self.logger.info(f"Unexpected error: {e}")
+            return None
+
+    def update_key_policy(self, kms_client, key_id, key_policy):
+        """Put KMS key policy.
+
+        Args:
+            kms_client: boto3 kms client
+            key_id: key id
+            key_policy: key policy
+        """
+        try:
+            kms_client.put_key_policy(
+                KeyId=key_id,
+                Policy=key_policy,
+                PolicyName="default",
+            )
+        except ClientError as e:
+            self.logger.info(f"Unexpected error: {e}")
