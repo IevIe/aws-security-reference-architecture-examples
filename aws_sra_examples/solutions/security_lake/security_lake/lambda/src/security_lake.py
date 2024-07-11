@@ -599,47 +599,6 @@ def create_table_in_data_catalog(configuration_role_name, region, subscriber_acc
                 raise
 
 
-def set_data_lake_permissions(sl_client, data_lake_admin, region):
-    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share", subscriber_acct)
-    lf_client = subscriber_session.client("lakeformation", region)
-    try:
-        response = sl_client.create_data_lake_admin(
-            dataLakeAdmin={
-                'dataLakeAdminArn': data_lake_admin
-            },
-            region=region
-        )
-        api_call_details = {"API_Call": "securitylake:CreateDataLakeAdmin", "API_Response": response}
-        LOGGER.info(api_call_details)
-    except ClientError as e:
-        LOGGER.error(f"Error calling CreateDataLakeAdmin {e}.")
-        raise
-
-response = client.grant_permissions(
-    CatalogId='string',
-    Principal={
-        'DataLakePrincipalIdentifier': f'arn:aws:iam::{account}:role/sra-security-lake-configuration'
-    },
-    Resource={
-        'Database': {
-            'CatalogId': account,
-            'Name': db_name
-        }
-    },
-    Permissions=[
-        'ALL',
-        'ALTER',
-        'DROP',
-        'DESCRIBE',
-        'CREATE_TABLE',
-    ],
-    PermissionsWithGrantOption=[
-        'ALL'|'SELECT'|'ALTER'|'DROP'|'DELETE'|'INSERT'|'DESCRIBE'|'CREATE_DATABASE'|'CREATE_TABLE'|'DATA_LOCATION_ACCESS'|'CREATE_LF_TAG'|'ASSOCIATE'|'GRANT_WITH_LF_TAG_EXPRESSION',
-    ]
-)
-
-
-
 def set_audit_subscriber_log_sources(client, region, source_version):  # TODO: use to get all enabled sources
     log_sources = ["ROUTE53", "VPC_FLOW", "SH_FINDINGS", "CLOUD_TRAIL_MGMT", "LAMBDA_EXECUTION", "S3_DATA", "EKS_AUDIT", "WAF"]
     existing_log_sources = []
