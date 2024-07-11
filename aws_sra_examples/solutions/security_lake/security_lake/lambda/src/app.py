@@ -289,6 +289,7 @@ def create_kms_key(configuration_role, account, region):
     """Create KMS key."""
     LOGGER.info("Checking/deploying KMS resources...")
     slr_exists = check_slr_exists(configuration_role, account, region)
+    sleep(60)
     key_alias = f"alias/sra-security-lake-{account}-{region}"
     delegated_admin_session = common.assume_role(configuration_role, "sra-configure-security-lake", account)
     kms_client = delegated_admin_session.client("kms", region)
