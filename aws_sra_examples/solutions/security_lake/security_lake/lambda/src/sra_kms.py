@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 import json
+from time import sleep
+import random
 
 from botocore.exceptions import ClientError
 
@@ -101,13 +103,31 @@ class sra_kms:
         Returns:
             key_id: key id
         """
-        key_response = kms_client.create_key(
-            Policy=key_policy,
-            Description=key_description,
-            KeyUsage="ENCRYPT_DECRYPT",
-            CustomerMasterKeySpec="SYMMETRIC_DEFAULT",
-        )
-        return key_response["KeyMetadata"]
+        number_retries = 7
+        base_delay = 0.5
+        max_delay = 60
+        key_created = False
+        for attempt in range(number_retries):
+            try:
+                key_response = kms_client.create_key(
+                    Policy=key_policy,
+                    Description=key_description,
+                    KeyUsage="ENCRYPT_DECRYPT",
+                    CustomerMasterKeySpec="SYMMETRIC_DEFAULT",
+                )
+                key_created = True
+                return key_response["KeyMetadata"]
+            except ClientError as error:
+                if error.response["Error"]["Code"] == "MalformedPolicyDocumentException":
+                    self.logger.error(f"'MalformedPolicyDocumentException' occurred. Retrying ({attempt+1}/{number_retries})...")
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    delay += random.uniform(0, 1)
+                    sleep(delay)
+                else:
+                    self.logger.error(f"Create KMS key error: {error.response['Error']['Message']}")
+                    raise
+        if not key_created:
+            self.logger.error("Error creating KMS key")
 
     def create_alias(self, kms_client, alias_name, target_key_id):
         """Create KMS key alias.

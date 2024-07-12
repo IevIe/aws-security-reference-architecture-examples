@@ -264,32 +264,25 @@ def get_validated_parameters(event: Dict[str, Any]) -> dict:  # TODO: (ieviero) 
     return params
 
 def check_slr_exists(configuration_role, account, region):
-    number_retries = 5
-    base_delay = 0.5
-    max_delay = 45
-    role_created = False
     LOGGER.info(f"Checking if 'AWSServiceRoleForLakeFormationDataAccess' IAM role exists")
     delegated_admin_session = common.assume_role(configuration_role, "sra-configure-security-lake", account)
     iam_client = delegated_admin_session.client("iam", region)
-    for attempt in range(number_retries):
-        role_exists = iam.check_iam_role_exists(iam_client, "AWSServiceRoleForLakeFormationDataAccess")
-        if not role_exists:
-            delay = min(base_delay * (2 ** attempt), max_delay)
-            delay += random.uniform(0, 1)
-            sleep(delay)
-        if role_exists:
-            role_created = True
-            break
-    if not role_created:
-        LOGGER.info("Role 'AWSServiceRoleForLakeFormationDataAccess' was not created...")
+    role_exists = iam.check_iam_role_exists(iam_client, "AWSServiceRoleForLakeFormationDataAccess")
+    if not role_exists:
+        LOGGER.info("Role 'AWSServiceRoleForLakeFormationDataAccess' not found...")
+        return False
+    if role_exists:
+        LOGGER.info("Role 'AWSServiceRoleForLakeFormationDataAccess' found...")
+        return True
         
-    return role_created
+        
+    return role_exists
 
 def create_kms_key(configuration_role, account, region):
     """Create KMS key."""
     LOGGER.info("Checking/deploying KMS resources...")
     slr_exists = check_slr_exists(configuration_role, account, region)
-    sleep(60)
+    # sleep(60)
     key_alias = f"alias/sra-security-lake-{account}-{region}"
     delegated_admin_session = common.assume_role(configuration_role, "sra-configure-security-lake", account)
     kms_client = delegated_admin_session.client("kms", region)
@@ -297,6 +290,21 @@ def create_kms_key(configuration_role, account, region):
     if alias_exists:
         LOGGER.info(f"Alias {key_alias} already exists:\n{alias_info}")
     elif slr_exists and not alias_exists:
+        LOGGER.info(f"Alias {key_alias} does not exist.  Creating key and alias...")
+        key_policy = kms.define_key_policy(account, PARTITION, region)
+        key_info = kms.create_kms_key(kms_client, key_policy, "SRA Security Lake KMS key")
+        key_arn = key_info["Arn"]
+        key_id = key_info["KeyId"]
+        alias_created = kms.create_alias(kms_client, key_alias, key_id)
+        if alias_created:
+            LOGGER.info(f"Alias {key_alias} created")
+        kms.enable_key_rotation(kms_client, key_id)
+        return key_arn
+    elif not slr_exists and not alias_exists:  # TODO: ieviero remove after testing
+        LOGGER.info("SLR role does not exist. Please create the role first.")
+        delegated_admin_session = common.assume_role(configuration_role, "sra-enable-security-lake", account)  # TODO: (Ieviero) add sts class instead of common
+        iam_client = delegated_admin_session.client("iam", HOME_REGION)
+        create_service_linked_role(iam_client, account)
         LOGGER.info(f"Alias {key_alias} does not exist.  Creating key and alias...")
         key_policy = kms.define_key_policy(account, PARTITION, region)
         key_info = kms.create_kms_key(kms_client, key_policy, "SRA Security Lake KMS key")
