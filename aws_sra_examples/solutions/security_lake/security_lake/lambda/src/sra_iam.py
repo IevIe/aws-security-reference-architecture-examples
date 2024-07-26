@@ -35,7 +35,7 @@ class sra_iam:
         """
         try:
             iam_client.get_role(RoleName=role_name)
-            self.LOGGER.info(f"Role '{role_name}' already exists.")
+            # self.LOGGER.info(f"Role '{role_name}' already exists.")
             return True
         except ClientError as error:
             if error.response["Error"]["Code"] == "NoSuchEntity":

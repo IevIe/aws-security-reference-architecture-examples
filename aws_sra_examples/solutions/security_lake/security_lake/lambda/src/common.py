@@ -61,21 +61,14 @@ def assume_role(
         session = boto3.Session()
     sts_client: STSClient = session.client("sts")
     sts_arn = sts_client.get_caller_identity()["Arn"]
-    # LOGGER.info(f"USER: {sts_arn}")
+    LOGGER.info(f"USER: {sts_arn}")
     if not account:
         account = sts_arn.split(":")[4]
     partition = sts_arn.split(":")[1]
     role_arn = f"arn:{partition}:iam::{account}:role/{role}"
 
     response = sts_client.assume_role(RoleArn=role_arn, RoleSessionName=role_session_name)
-    # LOGGER.info(f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}")
-    # LOGGER.info("USER: %s%sASSUMED ROLE: %s", sts_arn, os.linesep, response['AssumedRoleUser']['Arn'])
-    user_role_details = [
-        f"USER: {sts_arn}",
-        f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}"
-    ]
-    LOGGER.info("\n".join(user_role_details))
-    # LOGGER.info(f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}")
+    LOGGER.info(f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}")
     return boto3.Session(
         aws_access_key_id=response["Credentials"]["AccessKeyId"],
         aws_secret_access_key=response["Credentials"]["SecretAccessKey"],

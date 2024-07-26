@@ -151,7 +151,7 @@ def check_data_lake_exists(sl_client, region, max_retries=MAX_RETRY, initial_del
                 if retry_count < max_retries:
                     delay = min(delay * (2 ** retry_count), max_delay)
                     delay += random.uniform(0, 1)
-                    LOGGER.info("Create status (%s): 'INITIALIZED'. Retrying (%d/%d) in %d seconds...", region, retry_count+1, max_retries, delay)
+                    LOGGER.info("Security Lake create status (%s): 'INITIALIZED'. Retrying (%d/%d) in %d seconds...", region, retry_count+1, max_retries, delay)
                     sleep(delay)
                     retry_count += 1
             elif response["dataLakes"][0]["createStatus"] == "COMPLETED":
@@ -232,81 +232,74 @@ def create_security_lake(sl_client, delegated_admin_acct, sl_configurations, reg
         LOGGER.error("Error creating security lake")
         raise
 
-def check_log_source(sl_client, org_accounts, regions, log_source_name, log_source_version):
-    accounts_to_disable_log_source = []
-    regions_with_source_enabled = []
-    regions_to_disable = []
-    CheckLogSourceResult = namedtuple('CheckLogSourceResult', ['source_exists', 'accounts_to_disable', 'regions_to_disable'])
+# def check_log_source(sl_client, org_accounts, regions, log_source_name, log_source_version):
+#     accounts_to_disable_log_source = []
+#     CheckLogSourceResult = namedtuple('CheckLogSourceResult', ['source_exists', 'accounts_to_disable'])
 
-    response = sl_client.list_log_sources(
-        accounts=org_accounts,
-        regions=regions,
-        sources=[{'awsLogSource': {'sourceName': log_source_name, 'sourceVersion': log_source_version}}]
-    )
+#     response = sl_client.list_log_sources(
+#         accounts=org_accounts,
+#         regions=regions,
+#         sources=[{'awsLogSource': {'sourceName': log_source_name, 'sourceVersion': log_source_version}}]
+#     )
+#     LOGGER.info("!!!! running check_log_source line 244")
+#     if not response['sources']:
+#         # LOGGER.info("Log and event source %s not enabled", log_source_name)
+#         return CheckLogSourceResult(False, accounts_to_disable_log_source)
+#     else:
+#         enabled_accounts = set(s['account'] for s in response["sources"] if s['account'] in org_accounts)
+#         accounts_to_disable_log_source = enabled_accounts
 
-    if not response['sources']:
-        LOGGER.info("Log and event source %s not enabled", log_source_name)
-        return CheckLogSourceResult(False, accounts_to_disable_log_source, regions_to_disable)
-    else:
-        enabled_accounts = set(s['account'] for s in response["sources"] if s['account'] in org_accounts)
-        regions_with_source_enabled = list(set(s['region'] for s in response["sources"]))
+#         LOGGER.info("Accounts to disable %s: %s", log_source_name, accounts_to_disable_log_source)  # TODO: remove
+#         LOGGER.info("Regions to disable %s: %s", log_source_name, regions)
 
-        accounts_to_disable_log_source = enabled_accounts
-        regions_to_disable = regions_with_source_enabled
-
-        LOGGER.info("Accounts to disable %s: %s", log_source_name, accounts_to_disable_log_source)  # TODO: remove
-        LOGGER.info("Regions to disable %s: %s", log_source_name, regions_to_disable)
-
-        return CheckLogSourceResult(True, accounts_to_disable_log_source, regions_to_disable)
+#         return CheckLogSourceResult(True, accounts_to_disable_log_source)
 
 
-def check_log_source_enabled(sl_client, requested_accounts, org_accounts, regions, requested_regions, log_source_name, log_source_version):
+def check_log_source_enabled(sl_client, requested_accounts, org_accounts, requested_regions, log_source_name, log_source_version):
     accounts_to_enable = []
     accounts_to_disable_log_source = []
     regions_with_source_enabled = []
-    regions_to_disable = []
-    CheckLogSourceResult = namedtuple('CheckLogSourceResult', ['source_exists', 'accounts_to_enable', 'accounts_to_disable', 'regions_to_disable'])
+    CheckLogSourceResult = namedtuple('CheckLogSourceResult', ['source_exists', 'accounts_to_enable', 'accounts_to_disable', 'regions_to_enable'])
 
     response = sl_client.list_log_sources(
         accounts=org_accounts,
-        regions=regions,
+        regions=requested_regions,
         sources=[{'awsLogSource': {'sourceName': log_source_name, 'sourceVersion': log_source_version}}]
     )
 
     if not response['sources']:
-        LOGGER.info("Log and event source %s not enabled", log_source_name)
-        return CheckLogSourceResult(False, requested_accounts, accounts_to_disable_log_source, regions_to_disable)
+        # LOGGER.info("Log and event source %s not enabled", log_source_name)
+        return CheckLogSourceResult(False, requested_accounts, accounts_to_disable_log_source, requested_regions)
     else:
         enabled_accounts = set(s['account'] for s in response["sources"] if s['account'] in org_accounts)
         regions_with_source_enabled = list(set(s['region'] for s in response["sources"]))
         LOGGER.info("Log source %s exists in account(s) %s in %s region(s).", log_source_name, ', '.join(enabled_accounts), ', '.join(regions_with_source_enabled))
 
-        print("accounts with log source enabled: ", list(enabled_accounts))
-        print("regions with log source enabled: ", regions_with_source_enabled)
-
         accounts_to_enable = [account for account in requested_accounts if account not in enabled_accounts]
         accounts_to_disable_log_source = [account for account in enabled_accounts if account not in requested_accounts]
-        regions_to_disable = [region for region in regions_with_source_enabled if region not in requested_regions]
+        regions_to_enable = [region for region in requested_regions if region not in regions_with_source_enabled]
 
-        LOGGER.info("Accounts to enable %s: %s", log_source_name, accounts_to_enable)
-        LOGGER.info("Accounts to disable %s: %s", log_source_name, accounts_to_disable_log_source)
-        LOGGER.info("Regions to disable %s: %s", log_source_name, regions_to_disable)
+        if accounts_to_enable:
+            LOGGER.info("AWS log and event source %s  will be enabled in %s account(s)", log_source_name, ', '.join(accounts_to_enable))
+        if accounts_to_disable_log_source:
+            LOGGER.info("AWS log and event source %s will be deleted in %s account(s)", log_source_name, ', '.join(accounts_to_disable_log_source))
+        if regions_to_enable:
+            LOGGER.info("AWS log and event source %s will be enabled in %s region(s)", log_source_name, ', '.join(regions_to_enable))
 
-        return CheckLogSourceResult(True, accounts_to_enable, accounts_to_disable_log_source, regions_to_disable)
+        return CheckLogSourceResult(True, accounts_to_enable, accounts_to_disable_log_source, regions_to_enable)
 
 
-def set_aws_log_source(sl_client, requested_regions, all_regions, source, requested_accounts, org_accounts, source_version): # HERE
-    result = check_log_source_enabled(sl_client, requested_accounts, org_accounts, all_regions, requested_regions, source, source_version)
+def set_aws_log_source(sl_client, requested_regions, source, requested_accounts, org_accounts, source_version): # HERE
+    result = check_log_source_enabled(sl_client, requested_accounts, org_accounts, requested_regions, source, source_version)
     accounts = list(result.accounts_to_enable)
     accounts_to_delete = list(result.accounts_to_disable)
-    regions_to_delete = list(result.regions_to_disable)
-
+    regions_to_enable = list(result.regions_to_enable)
 
     configurations = {'accounts': requested_accounts, 'regions': requested_regions, 'sourceName': source, 'sourceVersion': source_version}
     if result.source_exists and accounts:
         configurations.update({'accounts': accounts})
     
-    if result.source_exists and not accounts:
+    if result.source_exists and not accounts and not regions_to_enable:
         pass
     
     else:
@@ -317,10 +310,10 @@ def set_aws_log_source(sl_client, requested_regions, all_regions, source, reques
 
         for attempt in range(create_log_source_retries):
             try:
-                LOGGER.info("Creating log and events source %s in account(s) %s in %s region(s)....", source, ', '.join(configurations['accounts']), ', '.join(requested_regions))
+                LOGGER.info("Creating/updating log and events source %s in account(s) %s in %s region(s)", source, ', '.join(configurations['accounts']), ', '.join(requested_regions))
                 sl_client.create_aws_log_source(sources=[configurations])
                 log_source_created = True
-                LOGGER.info("Log and events source %s created in account(s) %s in %s region...", source, ', '.join(configurations['accounts']), ', '.join(configurations['regions']))
+                LOGGER.info("Created/updated log and events source %s in account(s) %s in %s region(s)", source, ', '.join(configurations['accounts']), ', '.join(configurations['regions']))
                 break
             except ClientError as e:
                 error_code = e.response['Error']['Code']
@@ -339,9 +332,7 @@ def set_aws_log_source(sl_client, requested_regions, all_regions, source, reques
         if not log_source_created:
             LOGGER.error("Failed to create log events source %s after %d attempts.", source, create_log_source_retries)
             raise
-
-    if regions_to_delete:
-        delete_aws_log_source(sl_client, regions_to_delete, source, org_accounts, source_version)        
+      
     if accounts_to_delete:
         delete_aws_log_source(sl_client, requested_regions, source, accounts_to_delete, source_version)
 
@@ -396,7 +387,6 @@ def set_sources_to_disable(org_configruations, region):
     sources_to_disable = []
     for configuration in org_configruations:
         if configuration['region'] == region:
-            LOGGER.info("Sources: %s", configuration['sources'])
             for source in configuration['sources']:
                 sources_to_disable.append(source)
 
@@ -554,7 +544,6 @@ def update_subscriber(sl_client, subscriber_id, source_types, external_id, princ
     for source in source_types:
         aws_log_source={'awsLogSource': {'sourceName': source, 'sourceVersion': source_verison},}
         subscriber_sources.append(aws_log_source)
-    LOGGER.info("Subscriber '%s' log and events sources: %s", subscriber_name, subscriber_sources)
 
     try:
         response = sl_client.update_subscriber(
@@ -568,6 +557,7 @@ def update_subscriber(sl_client, subscriber_id, source_types, external_id, princ
         )
         api_call_details = {"API_Call": "securitylake:UpdateSubscriber", "API_Response": response}
         # LOGGER.info(api_call_details)
+        LOGGER.info("Subscriber '%s' updated", subscriber_name)
         if response['subscriber']['accessTypes'] == ['LAKEFORMATION']:
             resource_share_arn = response['subscriber']['resourceShareArn']
             # resource_share_name = response['subscriber']['resourceShareName']
@@ -856,8 +846,9 @@ def delete_subscriber(sl_client, subscriber_name, region):
 def delete_aws_log_source(sl_client, regions, source, accounts, source_version):
     configurations = {'accounts': accounts, 'regions': regions, 'sourceName': source, 'sourceVersion': source_version}
     try:
-        LOGGER.info("Deleting AWS log source %s in %s accounts %s region(s)...", source, accounts, regions)
+        LOGGER.info("Deleting AWS log source %s in %s accounts %s region(s)...", source, ', '.join(accounts), ', '.join(regions))
         sl_client.delete_aws_log_source(sources=[configurations])
+        LOGGER.info("Deleting AWS log source %s in %s accounts %s region(s)...", source, ', '.join(accounts), ', '.join(regions))
     except ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code == 'UnauthorizedException':

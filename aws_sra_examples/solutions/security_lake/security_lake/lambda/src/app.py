@@ -270,14 +270,14 @@ def check_slr_exists(configuration_role, account, region):
     Returns:
         bool: True if the service-linked role exists, False otherwise
     """
-    LOGGER.info("Checking if 'AWSServiceRoleForLakeFormationDataAccess' service-linked role exist")  # TODO: role name
     delegated_admin_session = common.assume_role(configuration_role, "sra-configure-security-lake", account)
     iam_client = delegated_admin_session.client("iam", region)
+    LOGGER.info("Checking if 'AWSServiceRoleForLakeFormationDataAccess' service-linked role exist")
     role_exists = iam.check_iam_role_exists(iam_client, "AWSServiceRoleForLakeFormationDataAccess")
     if not role_exists:
         LOGGER.info("Service-linked role 'AWSServiceRoleForLakeFormationDataAccess' not found")
     else:
-        LOGGER.info("Service-linked role 'AWSServiceRoleForLakeFormationDataAccess' found")
+        LOGGER.info("Service-linked role 'AWSServiceRoleForLakeFormationDataAccess' already exists")
     return role_exists
 
 
@@ -293,10 +293,10 @@ def create_kms_key(configuration_role, account, region, slr_exists):
     Returns:
         str: KMS key ARN
     """
-    LOGGER.info("Checking/deploying KMS resources...")  # todo: fix this, do we need to check if
     key_alias = f"alias/sra-security-lake-{account}-{region}"
     delegated_admin_session = common.assume_role(configuration_role, "sra-configure-security-lake", account)
     kms_client = delegated_admin_session.client("kms", region)
+    LOGGER.info("Checking/deploying KMS resources...")  # todo: fix this, do we need to check if
     key_exists, key_arn = kms.check_key_exists(kms_client, key_alias)
     if key_exists:
         LOGGER.info("Key with alias '%s' already exists", key_alias)
@@ -440,25 +440,25 @@ def update_security_lake(params, regions):  # TODO: (ieviero) execute security_l
     """
     slr_exists = check_slr_exists(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], HOME_REGION)
     for region in regions:
-        LOGGER.info("Checking if Security Lake is enabled in %s region...", region)
         delegated_admin_session = common.assume_role(
             params["CONFIGURATION_ROLE_NAME"],
             "sra-update-security-lake",
             params["DELEGATED_ADMIN_ACCOUNT_ID"],  # TODO: (ieviero) use assume_role from sts class
         )
         sl_client = delegated_admin_session.client("securitylake", region)
+        LOGGER.info("Checking if Security Lake is enabled in %s region...", region)
         lake_exists = security_lake.check_data_lake_exists(sl_client, region)
         if lake_exists:
             LOGGER.info("Security Lake already enabled in %s region.", region)
             # security_lake.update_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations)
         else:
+            LOGGER.info("Security Lake not found in %s region. Enabling Security Lake...", region)
             key_arn = create_kms_key(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], region, slr_exists)
             sl_configurations = security_lake.set_configurations(region, key_arn)
-            LOGGER.info("Security Lake not found in %s region. Creating Security Lake...", region)
             security_lake.create_security_lake(sl_client, params["DELEGATED_ADMIN_ACCOUNT_ID"], sl_configurations, region)
             lake_exists = security_lake.check_data_lake_exists(sl_client, region)
             if lake_exists:
-                LOGGER.info("Security Lake enabled in %s.", region)
+                LOGGER.info("Security Lake is enabled in %s.", region)
 
         process_org_configuration(sl_client, params["SET_ORG_CONFIGURATION"], params["ORG_CONFIGURATION_SOURCES"], region, params["SOURCE_VERSION"])
 
@@ -473,18 +473,27 @@ def process_org_configuration(sl_client, set_org_configuration, org_confiugratio
         region: AWS region
         source_version: source version
     """
-    LOGGER.info("Checking if Organization Configuration configured in %s region", region)
+    LOGGER.info("Checking if Organization Configuration enabled in %s region", region)
     org_configuration_exists, exisiting_org_configuration = security_lake.get_org_configuration(sl_client)
     if set_org_configuration:
         sources = build_log_sources(org_confiugration_sources)
         if not org_configuration_exists:
-            LOGGER.info("Creating Organization Configuration in %s region...", region)
+            LOGGER.info("Organization Configuration not enabled in %s region. Creating...", region)
             security_lake.create_organization_configuration(sl_client, region, sources, source_version)
         else:
-            LOGGER.info("Updating Organization Configuration in %s region...", region)
-            security_lake.update_organization_configuration(
-                sl_client, region, sources, source_version, exisiting_org_configuration
-            )  # TODO add delete action
+            region_enabled = False
+            for configuration in exisiting_org_configuration:
+                if configuration["region"] == region:
+                    region_enabled = True
+                    break
+            if region_enabled:
+                LOGGER.info("Organization Configuration already enabled in %s region. Updating...", region)
+                security_lake.update_organization_configuration(
+                    sl_client, region, sources, source_version, exisiting_org_configuration
+                )
+            else:
+                LOGGER.info("Organization Configuration not enabled in %s region. Creating...", region)
+                security_lake.create_organization_configuration(sl_client, region, sources, source_version)
     else:
         if org_configuration_exists:
             LOGGER.info("Deleting Organization Configuration in %s region...", region)
@@ -502,7 +511,7 @@ def add_update_log_sources(params, regions, org_accounts):
     org_accounts_ids = []
     for account in org_accounts:
         org_accounts_ids.append(account["AccountId"])  # TODO: just get accounts only
-    all_regions = common.get_available_regions()  # TODO: (ieviero) address the need of getting the regions
+    # all_regions = common.get_available_regions()  # TODO: (ieviero) address the need of getting the regions
     delegated_admin_session = common.assume_role(
         params["CONFIGURATION_ROLE_NAME"], "sra-add-update-log-sources", params["DELEGATED_ADMIN_ACCOUNT_ID"]
     )
@@ -516,13 +525,12 @@ def add_update_log_sources(params, regions, org_accounts):
             else:
                 accounts = params[i].split(",")
             source = i
-            security_lake.set_aws_log_source(sl_client, regions, all_regions, source, accounts, org_accounts_ids, params["SOURCE_VERSION"])
+            security_lake.set_aws_log_source(sl_client, regions, source, accounts, org_accounts_ids, params["SOURCE_VERSION"])
         elif params[i] == "":
-            result = security_lake.check_log_source(sl_client, org_accounts_ids, regions, i, params["SOURCE_VERSION"])
+            requested_accounts = []
+            result = security_lake.check_log_source_enabled(sl_client, requested_accounts, org_accounts_ids, regions, i, params["SOURCE_VERSION"])
             accounts_to_dis = list(result.accounts_to_disable)
             if result.source_exists:
-                LOGGER.info("Deleting %s log and event source...", i)
-                regions = list(result.regions_to_disable)
                 security_lake.delete_aws_log_source(sl_client, regions, i, accounts_to_dis, params["SOURCE_VERSION"])  # TODO: rename
         else:
             LOGGER.info("Error reading value for %s parameter", i)
@@ -536,28 +544,33 @@ def set_audit_acct_as_data_subscriber(params, regions, subscriber_name):
         regions: AWS regions
         subscriber_name: subscriber name
     """
-    for region in regions:
-        sources = get_log_sources_for_audit_subscriber(params)  # TODO: (ieviero) get existing sources from list_sources
-        delegated_admin_session = common.assume_role(
-            params["CONFIGURATION_ROLE_NAME"], "sra-configure-audit-acct-subscriber", params["DELEGATED_ADMIN_ACCOUNT_ID"]
-        )
-        sl_client = delegated_admin_session.client("securitylake", region)
-        subscriber_exists, subscriber_id, external_id = security_lake.list_subscribers(sl_client, subscriber_name)
-        if subscriber_exists:
-            resource_share_arn = security_lake.update_subscriber(
-                sl_client, subscriber_id, sources, external_id, AUDIT_ACCT_ID, subscriber_name, params["SOURCE_VERSION"]
+    sources = get_log_sources_for_audit_subscriber(params)
+    if sources == []:
+        LOGGER.info("No log sources selected for data access subscriber. Skipping...")
+        return
+    else:
+        for region in regions:
+            sources = get_log_sources_for_audit_subscriber(params)  # TODO: (ieviero) get existing sources from list_sources
+            delegated_admin_session = common.assume_role(
+                params["CONFIGURATION_ROLE_NAME"], "sra-configure-audit-acct-subscriber", params["DELEGATED_ADMIN_ACCOUNT_ID"]
             )
-            LOGGER.info("Updating subscriber Audit account subscriber '%s' in %s region...", subscriber_name, region)
-            security_lake.update_subscriber_notification(sl_client, subscriber_id)
-        else:
-            characters = string.ascii_letters + string.digits
-            external_id = "".join(random.choices(characters, k=8))
-            LOGGER.info("Creating subscriber Audit account subscriber '%s' in %s region...", subscriber_name, region)
-            subscriber_id, resource_share_arn = security_lake.create_subscribers(
-                sl_client, "S3", sources, external_id, AUDIT_ACCT_ID, subscriber_name, region, params["SOURCE_VERSION"]
-            )
-            LOGGER.info("Creating SQS notification for Audit account subscriber '%s' in %s region...", subscriber_name, region)
-            security_lake.create_subscriber_notification(sl_client, subscriber_id)
+            sl_client = delegated_admin_session.client("securitylake", region)
+            subscriber_exists, subscriber_id, external_id = security_lake.list_subscribers(sl_client, subscriber_name)
+            if subscriber_exists:
+                resource_share_arn = security_lake.update_subscriber(
+                    sl_client, subscriber_id, sources, external_id, AUDIT_ACCT_ID, subscriber_name, params["SOURCE_VERSION"]
+                )
+                LOGGER.info("Updating Audit account subscriber '%s' in %s region...", subscriber_name, region)
+                security_lake.update_subscriber_notification(sl_client, subscriber_id)
+            else:
+                characters = string.ascii_letters + string.digits
+                external_id = "".join(random.choices(characters, k=8))
+                LOGGER.info("Creating Audit account subscriber '%s' in %s region...", subscriber_name, region)
+                subscriber_id, resource_share_arn = security_lake.create_subscribers(
+                    sl_client, "S3", sources, external_id, AUDIT_ACCT_ID, subscriber_name, region, params["SOURCE_VERSION"]
+                )
+                LOGGER.info("Creating SQS notification for Audit account subscriber '%s' in %s region...", subscriber_name, region)
+                security_lake.create_subscriber_notification(sl_client, subscriber_id)
 
 
 # TODO: (ieviero) check which sources are enabled using list_sources
@@ -581,29 +594,33 @@ def set_audit_acct_as_query_subscriber(params, regions, subscriber_name):
         regions: AWS regions
         subscriber_name: subscriber name
     """
-    for region in regions:
-        sources = get_log_sources_for_audit_subscriber(params)
-        delegated_admin_session = common.assume_role(
-            params["CONFIGURATION_ROLE_NAME"], "sra-configure-audit-acct-subscriber", params["DELEGATED_ADMIN_ACCOUNT_ID"]
-        )
-        sl_client = delegated_admin_session.client("securitylake", region)
-        subscriber_exists, subscriber_id, external_id = security_lake.list_subscribers(sl_client, subscriber_name)
-        if subscriber_exists:
-            LOGGER.info("Audit account subscriber '%s' exists in %s region. Updating subscriber...", subscriber_name, region)
-            resource_share_arn = security_lake.update_subscriber(
-                sl_client, subscriber_id, sources, external_id, AUDIT_ACCT_ID, subscriber_name, params["SOURCE_VERSION"]
+    sources = get_log_sources_for_audit_subscriber(params)
+    if sources == []:
+        LOGGER.info("No log sources selected for query access subscriber. Skipping...")
+        return
+    else:
+        for region in regions:
+            delegated_admin_session = common.assume_role(
+                params["CONFIGURATION_ROLE_NAME"], "sra-configure-audit-acct-subscriber", params["DELEGATED_ADMIN_ACCOUNT_ID"]
             )
-        else:
-            characters = string.ascii_letters + string.digits
-            external_id = "".join(random.choices(characters, k=8))
-            LOGGER.info("Audit account subscriber '%s' does not exist in %s region. Creating subscriber...", subscriber_name, region)
-            subscriber_id, resource_share_arn = security_lake.create_subscribers(
-                sl_client, "LAKEFORMATION", sources, external_id, AUDIT_ACCT_ID, subscriber_name, region, params["SOURCE_VERSION"]
+            sl_client = delegated_admin_session.client("securitylake", region)
+            subscriber_exists, subscriber_id, external_id = security_lake.list_subscribers(sl_client, subscriber_name)
+            if subscriber_exists:
+                LOGGER.info("Audit account subscriber '%s' exists in %s region. Updating subscriber...", subscriber_name, region)
+                resource_share_arn = security_lake.update_subscriber(
+                    sl_client, subscriber_id, sources, external_id, AUDIT_ACCT_ID, subscriber_name, params["SOURCE_VERSION"]
+                )
+            else:
+                characters = string.ascii_letters + string.digits
+                external_id = "".join(random.choices(characters, k=8))
+                LOGGER.info("Audit account subscriber '%s' does not exist in %s region. Creating subscriber...", subscriber_name, region)
+                subscriber_id, resource_share_arn = security_lake.create_subscribers(
+                    sl_client, "LAKEFORMATION", sources, external_id, AUDIT_ACCT_ID, subscriber_name, region, params["SOURCE_VERSION"]
+                )
+            configure_query_subscriber(
+                "sra-security-lake-query-subscriber", AUDIT_ACCT_ID, subscriber_name, params["DELEGATED_ADMIN_ACCOUNT_ID"], region, resource_share_arn
             )
-        configure_query_subscriber(
-            "sra-security-lake-query-subscriber", AUDIT_ACCT_ID, subscriber_name, params["DELEGATED_ADMIN_ACCOUNT_ID"], region, resource_share_arn
-        )
-        create_athena_query_bucket("sra-security-lake-query-subscriber", AUDIT_ACCT_ID, region)
+            create_athena_query_bucket("sra-security-lake-query-subscriber", AUDIT_ACCT_ID, region)
 
 
 def build_subscriber_regions(subscriber_regions_param, security_lake_regions):
@@ -954,7 +971,9 @@ def process_event_cloudformation(event: CloudFormationCustomResourceEvent, conte
     Returns:
         AWS CloudFormation physical resource id
     """
-    print(event)
+    # print(event)
+    event_info = {"Event": event}
+    LOGGER.info(event_info)
     params = get_validated_parameters(event)
     # params = get_validated_parameters({"RequestType": event["RequestType"]})
     # excluded_accounts: list = [params["DELEGATED_ADMIN_ACCOUNT_ID"]]
