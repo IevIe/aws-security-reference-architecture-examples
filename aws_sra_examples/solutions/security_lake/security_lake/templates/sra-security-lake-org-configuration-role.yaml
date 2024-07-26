@@ -24,6 +24,7 @@ Metadata:
           - pSecurityLakeConfigurationRoleName
           - pSecurityLakeOrgLambdaRoleName
           - pManagementAccountId
+          # - pLogArchiveAccountId
 
     ParameterLabels:
       pManagementAccountId:
@@ -34,6 +35,8 @@ Metadata:
         default: SecurityLake Configuration Role Name
       pSRASolutionName:
         default: SRA Solution Name
+      # pLogArchiveAccountId:
+      #   default: Log Archive Account Id
 
 Parameters:
   pManagementAccountId:
@@ -58,6 +61,11 @@ Parameters:
     Default: sra-security-lake-org
     Description: The SRA solution name. The default value is the folder name of the solution
     Type: String
+  # pLogArchiveAccountId:
+  #   AllowedPattern: '^\d{12}$'
+  #   ConstraintDescription: Must be 12 digits
+  #   Description: Log Archive Account Id
+  #   Type: String
 
 Resources:
   rConfigurationRole:
@@ -84,54 +92,172 @@ Resources:
               AWS:
                 - !Sub arn:${AWS::Partition}:iam::${pManagementAccountId}:root
       Path: '/'
+      ManagedPolicyArns: 
+        - !Sub arn:${AWS::Partition}:iam::${AWS::Partition}:policy/AmazonSecurityLakeAdministrator 
       Policies:
-      
+        - PolicyName: sra-security-lake-org-lake-formation-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowPutLakeFormationSettings
+                Effect: Allow
+                Action: lakeformation:PutDatalakeSettings
+                Resource: "*"
+                Condition:
+                  ForAnyValue:StringEquals:
+                    aws:CalledVia: securitylake.amazonaws.com
+
         - PolicyName: sra-security-lake-org-policy-organizations
           PolicyDocument:
             Version: 2012-10-17
             Statement:
-              - Sid: OrganizationsListAccounts
-                Effect: Allow
-                Action:
-                  - organizations:ListAccounts
-                  - organizations:DescribeOrganization
-                Resource: '*'
+              # - Sid: OrganizationsListAccounts
+                # Effect: Allow
+                # Action:
+                  # - organizations:ListAccounts
+                  # - organizations:DescribeOrganization
+                # Resource: '*'
 
-        - PolicyName: sra-security-lake
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
+              - Sid: SecurityLake
+                Effect: Allow
+                Action: 
+                  - securitylake:ListDataLakes
+                  - securitylake:ListLogSources
+                  - securitylake:ListSubscribers
+                  - securitylake:CreateSubscriber
+                Resource: "*"
+
+              - Sid: SecurityLakeSubscriberAccess
+                Effect: Allow
+                Action: 
+                  - securitylake:UpdateSubscriber
+                  - securitylake:DeleteSubscriber
+                  - securitylake:CreateSubscriberNotification
+                  - securitylake:UpdateSubscriberNotification
+                  - securitylake:DeleteSubscriberNotification
+                Resource: !Sub arn:${AWS::Partition}:securitylake:${AWS::Region}:${AWS::AccountId}:subscriber/*   #  TODO: Add condition on resource tag
+
               - Sid: SecurityLakeAccess
                 Effect: Allow
-                Action: "*"
-                Resource: '*'
-        
-        - PolicyName: sra-security-lake-org-policy-iam
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Sid: AllowReadIamActions
+                Action: 
+                  - securitylake:CreateDataLake
+                  - securitylake:CreateDataLakeOrganizationConfiguration
+                  - securitylake:CreateAwsLogSource
+                  - securitylake:DeleteAwsLogSource
+                  - securitylake:DeleteDataLake
+                  - securitylake:DeleteDataLakeOrganizationConfiguration
+                  - securitylake:GetDataLakeOrganizationConfiguration
+                  - securitylake:UpdateDataLake
+                  - securitylake:TagResource
+                Resource: !Sub arn:${AWS::Partition}:securitylake:${AWS::Region}:${AWS::AccountId}:data-lake/default
+
+              # - Sid: SecurityLakeLambdaPermissions
+              #   Effect: Allow
+              #   Action: lambda:CreateFunction
+              #   Resource: !Sub arn:${AWS::Partition}:lambda:*:${AWS::AccountId}:function::AmazonSecurityLakeMetastoreManager-*
+
+              - Sid: AllowlambdaListEventSourceMappings
                 Effect: Allow
-                Action: iam:GetRole
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*
+                Action:
+                  - lambda:ListEventSourceMappings  # TODO: add resource
+                  - lambda:GetFunctionConfiguration
+                Resource: "*"
 
               - Sid: AllowCreateServiceLinkedRole
                 Effect: Allow
-                Action: iam:CreateServiceLinkedRole
+                Action: 
+                  - iam:CreateServiceLinkedRole
+                  - iam:GetRole
                 Condition:
                   StringLike:
-                    iam:AWSServiceName: securitylake.amazonaws.com
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
+                    iam:AWSServiceName: lakeformation.amazonaws.com
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/lakeformation.amazonaws.com/AWSServiceRoleForLakeFormationDataAccess
 
               - Sid: AllowPolicyActions
                 Effect: Allow
                 Action: iam:PutRolePolicy
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/lakeformation.amazonaws.com/AWSServiceRoleForLakeFormationDataAccess
 
               - Sid: AllowDeleteServiceLinkRole
                 Effect: Allow
                 Action: iam:DeleteServiceLinkedRole
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/lakeformation.amazonaws.com/AWSServiceRoleForLakeFormationDataAccess
+
+              - Sid: AllowIAMActions
+                Effect: Allow
+                Action: 
+                  - iam:DeleteServiceLinkedRole
+                  # - iam:GetPolicyVersion
+                  - iam:GetPolicy
+                  - iam:TagRole
+                  - iam:DeletePolicy
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:TagPolicy
+                  - iam:CreatePolicy
+                  - iam:DetachRolePolicy
+                  - iam:DeleteRolePolicy
+                  # - iam:CreatePolicyVersion
+                  - iam:GetRolePolicy
+                  # - iam:DeletePolicyVersion
+                  - iam:GetRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*
+
+              - Sid: AllowIAMPolicyActions
+                Effect: Allow
+                Action: iam:AttachRolePolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/sra-AmazonSecurityLakeMetaStoreManager
+                Condition:
+                  StringLike:
+                    iam:PolicyArn: !Sub arn:${AWS::Partition}:iam::${AWS::Partition}:policy/service-role/AmazonSecurityLakeMetastoreManager
+
+        - PolicyName: sra-security-lake-org-test-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AllowKMSActions
+                Effect: Allow
+                Action: 
+                  - kms:ListAliases
+                  - kms:CreateKey
+                  - kms:EnableKeyRotation
+                  - kms:DescribeKey
+                  - kms:TagResource
+                Resource: "*"
+
+              - Sid: AllowKMSAliasActions
+                Effect: Allow
+                Action: 
+                  - kms:CreateAlias
+                  - kms:DeleteAlias
+                Resource: !Sub arn:${AWS::Partition}:kms:*:${AWS::AccountId}:alias/sra-security-lake-${AWS::AccountId}-*
+
+              - Sid: AllowMetaStoreRoleActions
+                Effect: Allow
+                Action: 
+                  - iam:PassRole
+                  - iam:ListAttachedRolePolicies
+                  - iam:CreateRole
+                  - iam:GetRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/sra-AmazonSecurityLakeMetaStoreManager
+
+              - Sid: AllowActions
+                Effect: Allow
+                Action: 
+                  - glue:PutResourcePolicy
+                  - iam:CreateRole
+                  - iam:DeleteRolePolicy
+                  - iam:GetRole
+                  - iam:PutRolePolicy
+                  - lakeformation:GrantPermissions
+                  - lakeformation:ListPermissions
+                  - lakeformation:RegisterResource
+                  - lakeformation:RevokePermissions
+                  - ram:GetResourceShareAssociations
+                  - ram:GetResourceShares
+                  - ram:UpdateResourceShare
+                Resource: "*"
+
       Tags:
         - Key: sra-solution
           Value: !Ref pSRASolutionName

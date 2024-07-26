@@ -92,7 +92,24 @@ Resources:
             Statement:
               - Sid: SecurityLakeSubscriber
                 Effect: Allow
-                Action: "*"
+                Action:
+                  - ram:ListResources
+                  - ram:AcceptResourceShareInvitation
+                  - ram:GetResourceShareInvitations
+                  - lakeformation:GrantPermissions
+                  - s3:CreateBucket
+                  - s3:ListBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutBucketVersioning
+                  - glue:CreateDatabase
+                  - glue:CreateTable
+                  - glue:GetPartitions
+                  - glue:GetDatabase
+                  - glue:GetDatabases
+                  - glue:GetTable
+                  - athena:*
+                  - s3:*
                 Resource: '*'
         
         - PolicyName: sra-security-lake-org-policy-iam

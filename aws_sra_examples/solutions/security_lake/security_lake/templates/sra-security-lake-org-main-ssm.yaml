@@ -26,6 +26,7 @@ Metadata:
           - pRootOrganizationalUnitId
           - pStackSetAdminRole
           - pStackExecutionRole
+          - pOrganizationId
 
       - Label:
           default: Security Lake Configuration - Properties
@@ -33,6 +34,7 @@ Metadata:
           - pControlTowerRegionsOnly
           - pEnabledRegions
           # - pCreateKmsKey
+          - pSecurityLakeWarning
 
       - Label:
           default: Security Lake Configuration - Sources to Ingest
@@ -189,6 +191,10 @@ Metadata:
         default: Stack Set Role
       pStackExecutionRole:
         default: Stack execution role
+      pOrganizationId:
+        default: Organization ID
+      pSecurityLakeWarning:
+        default: Security Lake Warning
 
 Parameters:
   pSourceVersion:
@@ -476,6 +482,19 @@ Parameters:
     Default: sra-execution
     Description: The execution role name that is used in the stack.
     Type: String
+  pOrganizationId:
+    AllowedPattern: '^([\w.-]{1,900})$|^(\/[\w.-]{1,900})*[\w.-]{1,900}$'
+    ConstraintDescription:
+      Must be alphanumeric or special characters [., _, -]. In addition, the slash character ( / ) used to delineate hierarchies in parameter names.
+    Default: /sra/control-tower/organization-id
+    Description: SSM Parameter for AWS Organizations ID
+    Type: AWS::SSM::Parameter::Value<String>
+  pSecurityLakeWarning:
+    AllowedValues: ['Accept', 'Reject']
+    Default: 'Reject'
+    Description:
+      (Disclaimer) In supported Regions, new Security Lake account holders can try the service free for 15 days. Costs would be incurred after the free trial period. For details see https://aws.amazon.com/security-lake/pricing/
+    Type: String
 
 Conditions:
   cRegisterAuditAccountQuerySubscriber: !Equals [!Ref pRegisterAuditAccountQuerySubscriber, 'true']
@@ -484,6 +503,12 @@ Conditions:
     - !Condition cCreateQuerySubscriber
     - !Condition cRegisterAuditAccountQuerySubscriber
 
+Rules:
+  VerifySecurityLakeDisclaimer:
+    RuleCondition: !Equals [!Ref pSecurityLakeWarning, 'Reject']
+    Assertions:
+      - Assert: !Not [!Equals [!Ref pSecurityLakeWarning, 'Reject']]
+        AssertDescription: 'Please Acknowledge Security Lake pricing disclaimer'
 
 Resources:
   rSecurityLakeQuerySubscriberIAMRoleStackSet:
@@ -498,7 +523,7 @@ Resources:
       Capabilities:
         - CAPABILITY_NAMED_IAM
       Description:
-        !Sub ${pSRASolutionVersion} - Deploys an IAM role via ${pSRASolutionName} for configuring SecurityLake
+        !Sub ${pSRASolutionVersion} - Deploys an IAM role via ${pSRASolutionName} for configuring SecurityLake Subscriber account
       ExecutionRoleName: !Ref pStackExecutionRole
       ManagedExecution:
         Active: true
@@ -509,7 +534,7 @@ Resources:
       PermissionModel: SELF_MANAGED
       StackInstancesGroup:
         - DeploymentTargets:
-            Accounts:
+            Accounts:  # TODO separate into two stacks
               - !If
                 - cCreateQuerySubscriber
                 - !Ref pQuerySubscriberAccount
@@ -528,59 +553,29 @@ Resources:
         - Key: sra-solution
           Value: !Ref pSRASolutionName
 
-  # rSecurityLakeAuditSubscriberIAMRoleStackSet:
-  #   Type: AWS::CloudFormation::StackSet
-  #   Condition: cRegisterAuditAccountQuerySubscriber
-  #   Properties:
-  #     StackSetName: sra-security-lake-query-subscriber-role-2
-  #     AdministrationRoleARN: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${pStackSetAdminRole}
-  #     CallAs: SELF
-  #     Capabilities:
-  #       - CAPABILITY_NAMED_IAM
-  #     Description:
-  #       !Sub ${pSRASolutionVersion} - Deploys an IAM role via ${pSRASolutionName} for configuring SecurityLake
-  #     ExecutionRoleName: !Ref pStackExecutionRole
-  #     ManagedExecution:
-  #       Active: true
-  #     OperationPreferences:
-  #       FailureTolerancePercentage: 0
-  #       MaxConcurrentPercentage: 100
-  #       RegionConcurrencyType: PARALLEL
-  #     PermissionModel: SELF_MANAGED
-  #     StackInstancesGroup:
-  #       - DeploymentTargets:
-  #           Accounts:
-  #             - !Ref pAuditAccountId
-  #         Regions:
-  #           - !Ref AWS::Region
-  #     TemplateURL: !Sub https://${pSRAStagingS3BucketName}.s3.${AWS::Region}.${AWS::URLSuffix}/${pSRASolutionName}/templates/sra-security-lake-query-subscriber-role.yaml
-  #     Parameters:
-  #       - ParameterKey: pManagementAccountId
-  #         ParameterValue: !Ref AWS::AccountId
-  #     Tags:
-  #       - Key: sra-solution
-  #         Value: !Ref pSRASolutionName
-
   rSecurityLakeConfigurationIAMRoleStackSet:
     Type: AWS::CloudFormation::StackSet
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
     Properties:
       StackSetName: sra-security-lake-org-configuration-role
-      AutoDeployment:
-        Enabled: true
-        RetainStacksOnAccountRemoval: false
+      AdministrationRoleARN: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${pStackSetAdminRole}
       CallAs: SELF
       Capabilities:
         - CAPABILITY_NAMED_IAM
       Description: !Sub ${pSRASolutionVersion} - Deploys an IAM role via ${pSRASolutionName} for configuring SecurityLake
+      ExecutionRoleName: !Ref pStackExecutionRole
+      ManagedExecution:
+        Active: true
       OperationPreferences:
-        FailureTolerancePercentage: 100
+        FailureTolerancePercentage: 0
         MaxConcurrentPercentage: 100
         RegionConcurrencyType: PARALLEL
-      PermissionModel: SERVICE_MANAGED
+      PermissionModel: SELF_MANAGED
       StackInstancesGroup:
         - DeploymentTargets:
-            OrganizationalUnitIds:
-              - !Ref pRootOrganizationalUnitId
+            Accounts:
+              - !Ref pLogArchiveAccountId
           Regions:
             - !Ref AWS::Region
       TemplateURL: !Sub https://${pSRAStagingS3BucketName}.s3.${AWS::Region}.${AWS::URLSuffix}/${pSRASolutionName}/templates/sra-security-lake-org-configuration-role.yaml
@@ -591,23 +586,11 @@ Resources:
         - Key: sra-solution
           Value: !Ref pSRASolutionName
 
-  rSecurityLakeConfigurationIAMRoleStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub https://${pSRAStagingS3BucketName}.s3.${AWS::Region}.${AWS::URLSuffix}/${pSRASolutionName}/templates/sra-security-lake-org-configuration-role.yaml
-      Parameters:
-        pManagementAccountId: !Ref AWS::AccountId
-      Tags:
-        - Key: sra-solution
-          Value: !Ref pSRASolutionName
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-
   rSecurityLakeConfigurationStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      - rSecurityLakeConfigurationIAMRoleStackSet
-      - rSecurityLakeConfigurationIAMRoleStack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    DependsOn: rSecurityLakeConfigurationIAMRoleStackSet
     Properties:
       TemplateURL: !Sub https://${pSRAStagingS3BucketName}.s3.${AWS::Region}.${AWS::URLSuffix}/${pSRASolutionName}/templates/sra-security-lake-org-configuration.yaml
       Parameters:
@@ -622,9 +605,6 @@ Resources:
         pLambdaLogLevel: !Ref pLambdaLogLevel
         pSRAAlarmEmail: !Ref pSRAAlarmEmail
         pSRAStagingS3BucketName: !Ref pSRAStagingS3BucketName
-        # pSources: !Join
-        #     - ','
-        #     - !Ref pSources
         pCreateOrganizationConfiguration: !Ref pCreateOrganizationConfiguration
         pOrgConfigurationSources: !Join
             - ','
@@ -674,8 +654,53 @@ Resources:
         pQuerySubscriberAccount: !Ref pQuerySubscriberAccount
         pDataSubscriberAccount: !Ref pDataSubscriberAccount
         pCreateDataSubscriberNotification: !Ref pCreateDataSubscriberNotification
+        pOrganizationId: !Ref pOrganizationId
       Tags:
         - Key: sra-solution
           Value: !Ref pSRASolutionName
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+
+  # rSecurityLakeAuditSubscriberIAMRoleStackSet:
+  #   Type: AWS::CloudFormation::StackSet
+  #   Condition: cRegisterAuditAccountQuerySubscriber
+  #   Properties:
+  #     StackSetName: sra-security-lake-query-subscriber-role-2
+  #     AdministrationRoleARN: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${pStackSetAdminRole}
+  #     CallAs: SELF
+  #     Capabilities:
+  #       - CAPABILITY_NAMED_IAM
+  #     Description:
+  #       !Sub ${pSRASolutionVersion} - Deploys an IAM role via ${pSRASolutionName} for configuring SecurityLake
+  #     ExecutionRoleName: !Ref pStackExecutionRole
+  #     ManagedExecution:
+  #       Active: true
+  #     OperationPreferences:
+  #       FailureTolerancePercentage: 0
+  #       MaxConcurrentPercentage: 100
+  #       RegionConcurrencyType: PARALLEL
+  #     PermissionModel: SELF_MANAGED
+  #     StackInstancesGroup:
+  #       - DeploymentTargets:
+  #           Accounts:
+  #             - !Ref pAuditAccountId
+  #         Regions:
+  #           - !Ref AWS::Region
+  #     TemplateURL: !Sub https://${pSRAStagingS3BucketName}.s3.${AWS::Region}.${AWS::URLSuffix}/${pSRASolutionName}/templates/sra-security-lake-query-subscriber-role.yaml
+  #     Parameters:
+  #       - ParameterKey: pManagementAccountId
+  #         ParameterValue: !Ref AWS::AccountId
+  #     Tags:
+  #       - Key: sra-solution
+  #         Value: !Ref pSRASolutionName
+
+  # rSecurityLakeConfigurationIAMRoleStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub https://${pSRAStagingS3BucketName}.s3.${AWS::Region}.${AWS::URLSuffix}/${pSRASolutionName}/templates/sra-security-lake-org-configuration-role.yaml
+  #     Parameters:
+  #       pManagementAccountId: !Ref AWS::AccountId
+  #       pLogArchiveAccountId: !Ref pLogArchiveAccountId
+  #     Tags:
+  #       - Key: sra-solution
+  #         Value: !Ref pSRASolutionName
+  #   DeletionPolicy: Delete
+  #   UpdateReplacePolicy: Delete

@@ -34,17 +34,13 @@ class sra_iam:
         bool: True if the role exists, False otherwise.
         """
         try:
-            role_info = iam_client.get_role(RoleName=role_name)
+            iam_client.get_role(RoleName=role_name)
             self.LOGGER.info(f"Role '{role_name}' already exists.")
-            # return True, role_info
             return True
         except ClientError as error:
             if error.response["Error"]["Code"] == "NoSuchEntity":
-                self.LOGGER.info(f"Role '{role_name}' not found.")
-                # return False, None
                 return False
             else:
-                # Handle other possible exceptions (e.g., permission issues)
                 raise
 
     def create_role(self, iam_client, role_name: str, trust_policy: str):   # TODO: add waiter
@@ -59,7 +55,7 @@ class sra_iam:
             Dictionary output of a successful CreateRole request
         """
         try:
-            self.LOGGER.info(f"Creating role {role_name}")
+            self.LOGGER.info(f"Creating '{role_name}' IAM role")
             return iam_client.create_role(RoleName=role_name, AssumeRolePolicyDocument=json.dumps(trust_policy))
         except ClientError as err:
             self.LOGGER.exception(err)
@@ -106,7 +102,7 @@ class sra_iam:
         Returns:
             Empty response metadata
         """
-        self.LOGGER.info(f"Attaching managed policy to IAM role '{role_name}'")
+        self.LOGGER.info(f"Attaching managed policy to '{role_name}' IAM role ")
         return iam_client.attach_role_policy(RoleName=role_name, PolicyArn=policy_arn)
 
     def update_policy(self, iam_client, policy_arn, policy):

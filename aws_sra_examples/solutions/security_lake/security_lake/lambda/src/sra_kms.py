@@ -36,6 +36,8 @@ class sra_kms:
             home_region: Home region
         """
         self.logger = logger
+        self.KEY = "sra-solution"
+        self.VALUE = "sra-security-lake"
 
     def define_key_policy(self, delegated_admin_acct, partition, region):
         """Define Config Delivery Key Policy.
@@ -51,7 +53,10 @@ class sra_kms:
                     "Sid": "Enable IAM User Permissions",
                     "Effect": "Allow",
                     "Principal": {
-                        "AWS": f"arn:{partition}:iam::{delegated_admin_acct}:root"
+                        "AWS": [
+                            f"arn:{partition}:iam::{delegated_admin_acct}:root",
+                            f"arn:{partition}:iam::{delegated_admin_acct}:role/sra-security-lake-configuration"
+                        ],
                     },
                     "Action": "kms:*",
                     "Resource": "*",
@@ -88,7 +93,6 @@ class sra_kms:
             ]
         }
 
-        self.logger.info(f"Key Policy:\n{json.dumps(policy_template)}")
         return json.dumps(policy_template)
 
 
@@ -103,9 +107,9 @@ class sra_kms:
         Returns:
             key_id: key id
         """
-        number_retries = 7
+        number_retries = 10
         base_delay = 0.5
-        max_delay = 60
+        max_delay = 20
         key_created = False
         for attempt in range(number_retries):
             try:
@@ -114,14 +118,21 @@ class sra_kms:
                     Description=key_description,
                     KeyUsage="ENCRYPT_DECRYPT",
                     CustomerMasterKeySpec="SYMMETRIC_DEFAULT",
+                    Tags=[
+                        {
+                            'TagKey': self.KEY,
+                            'TagValue': self.VALUE
+                        },
+                    ]
                 )
                 key_created = True
                 return key_response["KeyMetadata"]
             except ClientError as error:
                 if error.response["Error"]["Code"] == "MalformedPolicyDocumentException":
-                    self.logger.error(f"'MalformedPolicyDocumentException' occurred. Retrying ({attempt+1}/{number_retries})...")
+                    self.logger.error(f"'MalformedPolicyDocumentException' occurred: {error}. Retrying ({attempt+1}/{number_retries})...")
                     delay = min(base_delay * (2 ** attempt), max_delay)
                     delay += random.uniform(0, 1)
+                    print("!!! KMS KEY DELAY", delay)
                     sleep(delay)
                 else:
                     self.logger.error(f"Create KMS key error: {error.response['Error']['Message']}")

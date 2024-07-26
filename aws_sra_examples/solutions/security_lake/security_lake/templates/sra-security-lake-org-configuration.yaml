@@ -19,12 +19,14 @@ Metadata:
           - pSRASolutionName
           - pSRAStagingS3BucketName
           - pSRAAlarmEmail
+          - pOrganizationId
 
       - Label:
           default: Lambda Function Properties
         Parameters:
           - pSecurityLakeOrgLambdaRoleName
           - pSecurityLakeOrgLambdaFunctionName
+          # - pSecurityLakeOrgLambdaFunctionVersion
 
       - Label:
           default: Custom Resource Properties
@@ -165,6 +167,10 @@ Metadata:
         default: Data access subscriber account id
       pCreateDataSubscriberNotification:
         default: Create Subscriber Notification
+      pOrganizationId:
+        default: Organization ID
+      # pSecurityLakeOrgLambdaFunctionVersion:
+        # default: Lambda Function
 
 
 Parameters:
@@ -443,6 +449,17 @@ Parameters:
     Default: 'true'
     Description: Select whether to automatically enable Amazon Security Lake for new member accounts in your organization
     Type: String
+  pOrganizationId:
+    AllowedPattern: '^o-[a-z0-9]{10,32}$'
+    ConstraintDescription: Must start with 'o-' followed by from 10 to 32 lowercase letters or digits. (e.g. o-abc1234567)
+    Description: AWS Organizations ID
+    Type: String
+  # pSecurityLakeOrgLambdaFunctionVersion:
+    # AllowedPattern: '^\d{1,2}\.\d{1,2}\.\d{1,2}$'
+    # Default: 1.0.0
+    # Description: SecurityLake configuration Lambda function version
+    # Type: String
+    
 
 Conditions:
   cComplianceFrequencySingleDay: !Equals [!Ref pComplianceFrequency, 1]
@@ -513,20 +530,32 @@ Resources:
           PolicyDocument:
             Version: 2012-10-17
             Statement:
-              - Sid: SecurityLakeAccess
+              - Sid: SecurityLakeDesignateAdministratorAccess
                 Effect: Allow
                 Action:
-                  - detective:EnableOrganizationAdminAccount
-                  - detective:DisableOrganizationAdminAccount
-                  - detective:ListOrganizationAdminAccount
-                Resource: '*'
-        - PolicyName: admin-access
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action: "*"
+                  - securitylake:RegisterDataLakeDelegatedAdministrator
+                  - securitylake:DeregisterDataLakeDelegatedAdministrator
+                  - organizations:EnableAWSServiceAccess
+                  - organizations:ListAccounts
+                  - organizations:ListDelegatedAdministrators
+                  - organizations:ListAWSServiceAccessForOrganization
+                  - organizations:ListDelegatedServicesForAccount
+                  - organizations:DescribeOrganizationalUnit
+                  - organizations:DescribeAccount
+                  - organizations:DescribeOrganization
+                  - organizations:RegisterDelegatedAdministrator
+                  - organizations:DeregisterDelegatedAdministrator
+                  - iam:CreateServiceLinkedRole
                 Resource: "*"
+              # - Sid: RegisterDeregisterDelegatedAdministrator
+              #   Effect: Allow
+              #   Action:
+              #     - organizations:RegisterDelegatedAdministrator
+              #     - organizations:DeregisterDelegatedAdministrator
+              #   Condition:
+              #     StringLikeIfExists:
+              #       organizations:ServicePrincipal: securitylake.amazonaws.com
+              #   Resource: !Sub arn:${AWS::Partition}:organizations::*:account/o-*/*
         - PolicyName: "ssm-access"
           PolicyDocument:
             Version: "2012-10-17"
@@ -537,24 +566,25 @@ Resources:
                   - ssm:GetParameters
                 Resource:
                   - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/sra*"
-
               - Sid: AllowReadIamActions
                 Effect: Allow
                 Action: iam:GetRole
                 Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*
 
-              - Sid: AllowCreateServiceLinkedRole
-                Effect: Allow
-                Action: iam:CreateServiceLinkedRole
-                Condition:
-                  StringLike:
-                    iam:AWSServiceName: securitylake.amazonaws.com
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
+              # - Sid: AllowCreateServiceLinkedRole
+              #   Effect: Allow
+              #   Action: iam:CreateServiceLinkedRole
+              #   Condition:
+              #     StringLike:
+              #       iam:AWSServiceName: securitylake.amazonaws.com
+              #   Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
 
-              - Sid: AllowPolicyActions
-                Effect: Allow
-                Action: iam:PutRolePolicy
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
+              # - Sid: AllowPolicyActions
+              #   Effect: Allow
+              #   Action: iam:PutRolePolicy
+              #   Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
+
+                      # - PolicyName: admin-access
 
         - PolicyName: sra-security-lake-org-policy-logs
           PolicyDocument:
@@ -567,24 +597,6 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${pSecurityLakeOrgLambdaFunctionName}:log-stream:*
-
-        - PolicyName: sra-security-lake-org-policy-organizations
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Sid: OrganizationsReadAccess
-                Effect: Allow
-                Action:
-                  - organizations:DescribeOrganization
-                  - organizations:ListAccounts
-                  - organizations:ListDelegatedAdministrators
-                Resource: '*'
-
-              - Sid: DeregisterDelegatedAdministrator
-                Effect: Allow
-                Action:
-                  - organizations:DeregisterDelegatedAdministrator
-                Resource: '*'
 
         - PolicyName: sra-security-lake-org-policy-sqs
           PolicyDocument:
@@ -604,6 +616,26 @@ Resources:
                 Action:
                   - account:ListRegions
                 Resource: '*'
+        #   PolicyDocument:
+        #     Version: 2012-10-17
+        #     Statement:
+        #       - Effect: Allow
+        #         Action: "*"
+        #         Resource: "*"
+
+        - PolicyName: sra-security-lake-org-policy-iam
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: AssumeRole
+                Effect: Allow
+                Action: sts:AssumeRole
+                Condition:
+                  StringEquals:
+                    aws:PrincipalOrgId: !Ref pOrganizationId
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::*:role/${pSecurityLakeConfigurationRoleName}
+                  - !Sub arn:${AWS::Partition}:iam::*:role/sra-security-lake-query-subscriber  # TODO: param
       Tags:
         - Key: sra-solution
           Value: !Ref pSRASolutionName
@@ -717,7 +749,7 @@ Resources:
       Content:
         S3Bucket: !Ref pSRAStagingS3BucketName
         S3Key: !Sub ${pSRASolutionName}/layer_code/${pSRASolutionName}-layer.zip
-      Description: Boto3 version 1.26.24 layer to enable newer API of security lake
+      Description: Boto3 version 1.26.24 layer to enable newer API of security lake  # todo
       LayerName: !Sub ${pSecurityLakeOrgLambdaFunctionName}-updated-boto3-layer
 
   rSecurityLakeOrgLambdaCustomResource:
@@ -897,6 +929,11 @@ Resources:
               - Effect: Allow
                 Action: events:PutEvents
                 Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+
+              # - Sid: AllowEventsActions
+              #   Effect: Allow
+              #   Action: events:PutEvents
+              #   Resource: !Sub arn:${AWS::Partition}:events:*:${AWS::AccountId}:event-bridge/SRA-Security-Lake-Org-*
 
 Outputs:
   oSecurityLakeOrgLambdaFunctionArn:

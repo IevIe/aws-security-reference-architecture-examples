@@ -61,14 +61,21 @@ def assume_role(
         session = boto3.Session()
     sts_client: STSClient = session.client("sts")
     sts_arn = sts_client.get_caller_identity()["Arn"]
-    LOGGER.info(f"USER: {sts_arn}")
+    # LOGGER.info(f"USER: {sts_arn}")
     if not account:
         account = sts_arn.split(":")[4]
     partition = sts_arn.split(":")[1]
     role_arn = f"arn:{partition}:iam::{account}:role/{role}"
 
     response = sts_client.assume_role(RoleArn=role_arn, RoleSessionName=role_session_name)
-    LOGGER.info(f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}")
+    # LOGGER.info(f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}")
+    # LOGGER.info("USER: %s%sASSUMED ROLE: %s", sts_arn, os.linesep, response['AssumedRoleUser']['Arn'])
+    user_role_details = [
+        f"USER: {sts_arn}",
+        f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}"
+    ]
+    LOGGER.info("\n".join(user_role_details))
+    # LOGGER.info(f"ASSUMED ROLE: {response['AssumedRoleUser']['Arn']}")
     return boto3.Session(
         aws_access_key_id=response["Credentials"]["AccessKeyId"],
         aws_secret_access_key=response["Credentials"]["SecretAccessKey"],
@@ -136,6 +143,55 @@ def get_enabled_regions(customer_regions: str, control_tower_regions_only: bool 
 
         LOGGER.info({"Default_Available_Regions": default_available_regions})
         region_list = default_available_regions
+
+    region_session = boto3.Session()
+    enabled_regions = []
+    disabled_regions = []
+    invalid_regions = []
+    for region in region_list:
+        try:
+            sts_client = region_session.client(
+                "sts",
+                endpoint_url=f"https://sts.{region}.amazonaws.com",
+                region_name=region,
+            )
+            sts_client.get_caller_identity()
+            enabled_regions.append(region)
+        except EndpointConnectionError:
+            invalid_regions.append(region)
+            LOGGER.error(f"Region: ({region}) is not valid")
+        except ClientError as error:
+            if error.response["Error"]["Code"] == "InvalidClientTokenId":
+                disabled_regions.append(region)
+            LOGGER.error(f"Error {error.response['Error']} occurred testing region {region}")
+        except Exception:
+            LOGGER.exception("Unexpected!")
+
+    LOGGER.info(
+        {
+            "Enabled_Regions": enabled_regions,
+            "Disabled_Regions": disabled_regions,
+            "Invalid_Regions": invalid_regions,
+        }
+    )
+    return enabled_regions
+
+def get_available_regions() -> list:  # noqa: CCR001, C901 # NOSONAR
+    """Query STS to identify enabled regions.
+
+    Args:
+        customer_regions: customer provided comma delimited string of regions
+        control_tower_regions_only: Use the Control Tower governed regions. Defaults to False.
+
+    Returns:
+        Enabled regions
+    """
+    default_available_regions = []
+    for region in boto3.client("account").list_regions(RegionOptStatusContains=["ENABLED", "ENABLED_BY_DEFAULT"])["Regions"]:
+        default_available_regions.append(region["RegionName"])
+
+    LOGGER.info({"Default_Available_Regions": default_available_regions})
+    region_list = default_available_regions
 
     region_session = boto3.Session()
     enabled_regions = []

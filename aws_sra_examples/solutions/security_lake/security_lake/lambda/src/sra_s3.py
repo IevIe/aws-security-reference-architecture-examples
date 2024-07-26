@@ -20,7 +20,7 @@ class sra_s3:
         except ClientError:
             return False
 
-    def create_s3_bucket(self, s3_client, bucket_name, bucket_policy, kms_key_id, region):
+    def create_s3_bucket(self, s3_client, bucket_name, bucket_policy, kms_key_id, region):  # TODO: ieviero
         if region != "us-east-1":
             created_bucket = s3_client.create_bucket(
                 ACL="private",
@@ -36,7 +36,6 @@ class sra_s3:
                 Bucket=bucket_name,
                 ObjectOwnership="BucketOwnerPreferred",
             )
-        self.LOGGER.info(f"Bucket created: {created_bucket}")
         # self.apply_bucket_policy(bucket_policy, bucket_name)
         # self.apply_bucket_encryption_policy(kms_key_id)
 
@@ -82,6 +81,6 @@ class sra_s3:
         self.LOGGER.info(f"Checking for {bucket_name} s3 bucket...")
         if self.query_for_s3_bucket() is False:
             self.LOGGER.info(
-                f"Bucket not found, creating {bucket_name} s3 bucket..."
+                f"Creating {bucket_name} s3 bucket..."
             )
-            self.create_s3_bucket()
+            self.create_s3_bucket
