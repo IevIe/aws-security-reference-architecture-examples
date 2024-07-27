@@ -206,6 +206,7 @@ def create_security_lake(sl_client, delegated_admin_acct, sl_configurations, reg
             api_call_details = {"API_Call": "securitylake:CreateDataLake", "API_Response": security_lake_response}   # TODO: ieviero get the status of SL from response
             # LOGGER.info(api_call_details)
             sleep(20)
+            LOGGER.info("Security Lake created in %s region.", region)
             data_lake_created = True
             break
 
@@ -361,14 +362,17 @@ def get_org_configuration(sl_client):
             raise
 
 
-def create_organization_configuration(sl_client, region, org_sources, source_version):
+def create_organization_configuration(sl_client, region, org_sources, source_version, retry = 0):
     sources = set_org_configuration_log_sources(org_sources, source_version)
-    try:
-        sl_client.create_data_lake_organization_configuration(
-            autoEnableNewAccount=[{'region': region, 'sources': sources},])
-    except ClientError as e:
-        LOGGER.error("Error calling CreateDataLakeConfiguration: %s.", e)
-        raise
+    
+    if retry < MAX_RETRY:
+        try:
+            sl_client.create_data_lake_organization_configuration(
+                autoEnableNewAccount=[{'region': region, 'sources': sources},])
+        except sl_client.exceptions.ConflictException:
+                LOGGER.info("'ConflictException' occurred. Retrying...")
+                sleep(5)
+                create_organization_configuration(sl_client, region, org_sources, source_version, retry + 1)
    
 
 def update_security_lake(sl_client, delegated_admin_acct, sl_configurations):  # TODO: parametarize iam role
@@ -646,7 +650,7 @@ def get_shared_resource_names(ram_client, resource_share_arn):  # TODO: add pagi
 
 
 def create_db_in_data_catalog(configuration_role_name, region, subscriber_acct, shared_db_name):
-    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share", subscriber_acct)
+    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share-link", subscriber_acct)
     glue_client = subscriber_session.client("glue", region)
     
     try:
@@ -671,7 +675,7 @@ def create_db_in_data_catalog(configuration_role_name, region, subscriber_acct, 
 
 
 def create_table_in_data_catalog(configuration_role_name, region, subscriber_acct, shared_db_name, shared_table_names, security_lake_acct):
-    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share", subscriber_acct)
+    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share-link", subscriber_acct)
     glue_client = subscriber_session.client("glue", region)
     for table in shared_table_names:
         try:
@@ -732,7 +736,7 @@ def set_audit_subscriber_log_sources(client, region, source_version):  # TODO: u
 
 
 def set_lake_formation_permissions(configuration_role_name, account, region, db_name, table_name):
-    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share", account)
+    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share-link", account)
     lf_client = subscriber_session.client("lakeformation", region)
     LOGGER.info("Setting lakeformation permissions for table %s", table_name)
 
@@ -761,7 +765,7 @@ def set_lake_formation_permissions(configuration_role_name, account, region, db_
 
 
 def set_lake_formation_permissions_sub(configuration_role_name, account, region, db_name, table_name):
-    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share", account)
+    subscriber_session = common.assume_role(configuration_role_name, "sra-create-resource-share-link", account)
     lf_client = subscriber_session.client("lakeformation", region)
     LOGGER.info("Setting lakeformation permissions on resource link table 'rl_%s'", table_name)
 

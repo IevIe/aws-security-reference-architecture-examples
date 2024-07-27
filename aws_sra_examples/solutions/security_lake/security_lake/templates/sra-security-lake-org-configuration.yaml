@@ -585,6 +585,16 @@ Resources:
               #   Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/securitylake.amazonaws.com/AWSServiceRoleForSecurityLake
 
                       # - PolicyName: admin-access
+        - PolicyName: sra-security-lake-policy-sns
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: SNSPublish
+                Effect: Allow
+                Action:
+                  - sns:Publish
+                  - sns:PublishBatch
+                Resource: !Ref rSecurityLakeOrgTopic
 
         - PolicyName: sra-security-lake-org-policy-logs
           PolicyDocument:
@@ -739,6 +749,8 @@ Resources:
               - !Ref pDataSubscriberLogSources 
           DATA_SUBSCRIBER_ACCT: !Ref pDataSubscriberAccount
           CREATE_NOTIFICATION: !Ref pCreateDataSubscriberNotification
+          SNS_TOPIC_ARN: !Ref rSecurityLakeOrgTopic
+
       Tags:
         - Key: sra-solution
           Value: !Ref pSRASolutionName
@@ -816,6 +828,31 @@ Resources:
           - !Ref pDataSubscriberLogSources 
       DATA_SUBSCRIBER_ACCT: !Ref pDataSubscriberAccount
       CREATE_NOTIFICATION: !Ref pCreateDataSubscriberNotification
+      SNS_TOPIC_ARN: !Ref rSecurityLakeOrgTopic
+
+  rSecurityLakeOrgTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${pSRASolutionName}-configuration
+      KmsMasterKeyId: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/sns
+      Tags:
+        - Key: sra-solution
+          Value: !Ref pSRASolutionName
+
+  rSecurityLakeOrgTopicLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt rSecurityLakeOrgLambdaFunction.Arn
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref rSecurityLakeOrgTopic
+
+  rSecurityLakeOrgTopicSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt rSecurityLakeOrgLambdaFunction.Arn
+      Protocol: lambda
+      TopicArn: !Ref rSecurityLakeOrgTopic
 
   rSecurityLakeOrgDLQ:
     Type: AWS::SQS::Queue
