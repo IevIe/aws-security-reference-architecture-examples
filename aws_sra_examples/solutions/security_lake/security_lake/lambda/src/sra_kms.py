@@ -1,3 +1,4 @@
+# type: ignore
 """Custom Resource to setup SRA IAM resources in the management account.
 
 Version: 1.0
@@ -75,6 +76,18 @@ class sra_kms:
                             "kms:CallerAccount": delegated_admin_acct,
                         }
                     },
+                },
+                {
+                    "Sid": "Allow s3 service to encrypt its events",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "s3.amazonaws.com"
+                    },
+                    "Action": [
+                        "kms:GenerateDataKey*",
+                        "kms:Decrypt"
+                    ],
+                    "Resource": "aws-security-data-lake*"
                 },
                 {
                     "Sid": "Allow use of the key",

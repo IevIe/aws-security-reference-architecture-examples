@@ -254,8 +254,10 @@ Resources:
                   - lakeformation:RegisterResource
                   - lakeformation:RevokePermissions
                   - ram:GetResourceShareAssociations
+                  - ram:DisassociateResourceShare
                   - ram:GetResourceShares
                   - ram:UpdateResourceShare
+                  - glue:DeleteResourcePolicy
                 Resource: "*"
 
       Tags:

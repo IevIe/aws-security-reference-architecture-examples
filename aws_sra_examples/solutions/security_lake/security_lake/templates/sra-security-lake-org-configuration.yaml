@@ -50,19 +50,6 @@ Metadata:
           - pEksAuditLogs
           - pRegisterAuditAccountDataSubscriber
           - pRegisterAuditAccountQuerySubscriber
-          - pCreateQuerySubscriber
-          - pQuerySubscriberName
-          - pQuerySubscriberExternalId
-          - pQuerySubscriberRegions
-          - pQuerySubscriberLogSources
-          - pQuerySubscriberAccount
-          - pCreateDataSubscriber
-          - pDataSubscriberName
-          - pDataSubscriberExternalId
-          - pDataSubscriberRegions
-          - pDataSubscriberLogSources
-          - pDataSubscriberAccount
-          - pCreateDataSubscriberNotification
 
       - Label:
           default: General Lambda Function Properties
@@ -141,32 +128,6 @@ Metadata:
         default: Register Audit Account as a Subscriber with Data Access
       pRegisterAuditAccountQuerySubscriber:
         default: Register Audit Account as a Subscriber with Query Access
-      pCreateQuerySubscriber:
-        default: Register a query access subscriber
-      pCreateDataSubscriber:
-        default: Register a data access subscriber
-      pQuerySubscriberName:
-        default: Query access subscriber name
-      pDataSubscriberName:
-        default: Data access subscriber name
-      pQuerySubscriberExternalId:
-        default: Query access subscriber external id
-      pDataSubscriberExternalId:
-        default: Data access subscriber external id
-      pQuerySubscriberRegions:
-        default: Query access subscriber regions
-      pDataSubscriberRegions:
-        default: Data access subscriber regions
-      pQuerySubscriberLogSources:
-        default: Query access subscriber log sources
-      pDataSubscriberLogSources:
-        default: Data access subscriber log sources
-      pQuerySubscriberAccount:
-        default: Query access subscriber account id
-      pDataSubscriberAccount:
-        default: Data access subscriber account id
-      pCreateDataSubscriberNotification:
-        default: Create Subscriber Notification
       pOrganizationId:
         default: Organization ID
       # pSecurityLakeOrgLambdaFunctionVersion:
@@ -360,83 +321,6 @@ Parameters:
     AllowedValues: ['true', 'false']
     Default: 'true'
     Description: Identifies whether to register Audit Account as a Subscriber with Query Access
-    Type: String
-  pCreateQuerySubscriber:
-    AllowedValues: ['true', 'false']
-    Default: 'false'
-    Description: Identifies whether to register a new query access Subscriber
-    Type: String
-  pCreateDataSubscriber:
-    AllowedValues: ['true', 'false']
-    Default: 'false'
-    Description: Identifies whether to register a new data access Subscriber
-    Type: String  
-  pQuerySubscriberName:
-    AllowedPattern: '^$|^[a-zA-Z][-a-zA-Z0-9]*$'
-    ConstraintDescription: Subscriber name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
-    Default: ''
-    Description: (Optional) Name for Security Lake subscriber with query access. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pDataSubscriberName:
-    AllowedPattern: '^$|^[a-zA-Z][-a-zA-Z0-9]*$'
-    ConstraintDescription: Subscriber name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
-    Default: ''
-    Description: (Optional) Name for Security Lake subscriber with data access. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pQuerySubscriberExternalId:
-    AllowedPattern: '^$|^[a-zA-Z0-9-]{1,64}$'
-    ConstraintDescription: Max 64 alphanumeric and underscore characters. Also special characters supported [., -]
-    Default: ''
-    Description: (Optional) External ID for Security Lake query access subscriber. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pDataSubscriberExternalId:
-    AllowedPattern: '^$|^[a-zA-Z0-9-]{1,64}$'
-    ConstraintDescription: Max 64 alphanumeric and underscore characters. Also special characters supported [., -]
-    Default: ''
-    Description: (Optional) External ID for Security Lake data access subscriber. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pQuerySubscriberRegions:
-    AllowedPattern: '^$|^([a-z0-9-]{1,64})$|^(([a-z0-9-]{1,64},)*[a-z0-9-]{1,64})$'
-    ConstraintDescription:
-      Only lowercase letters, numbers, and hyphens ('-') allowed. (e.g. us-east-1) Additional AWS regions can be provided, separated by commas. (e.g.
-      us-east-1,ap-southeast-2)
-    Default: ''
-    Description: (Optional) Query access subscriber regions (AWS regions, separated by commas). Leave blank to enable all regions.
-    Type: String
-  pDataSubscriberRegions:
-    AllowedPattern: '^$|^([a-z0-9-]{1,64})$|^(([a-z0-9-]{1,64},)*[a-z0-9-]{1,64})$'
-    ConstraintDescription:
-      Only lowercase letters, numbers, and hyphens ('-') allowed. (e.g. us-east-1) Additional AWS regions can be provided, separated by commas. (e.g.
-      us-east-1,ap-southeast-2)
-    Default: ''
-    Description: (Optional) Data access subscriber regions (AWS regions, separated by commas). Leave blank to enable all regions.
-    Type: String
-  pQuerySubscriberLogSources:
-    AllowedValues: [ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
-    Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
-    Description: (Optional) Log sources query subscriber can access. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: CommaDelimitedList
-  pDataSubscriberLogSources:
-    AllowedValues: [ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
-    Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
-    Description: (Optional) Log sources data access subscriber can access. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: CommaDelimitedList
-  pQuerySubscriberAccount:
-    AllowedPattern: '^\d{12}$'
-    Default: 222222222222
-    ConstraintDescription: Must be 12 digits.
-    Description: (Optional) AWS Account ID of the query access subscriber. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pDataSubscriberAccount:
-    AllowedPattern: '^\d{12}$'
-    Default: 222222222222
-    ConstraintDescription: Must be 12 digits.
-    Description: (Optional) AWS Account ID of the data access subscriber. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pCreateDataSubscriberNotification:
-    AllowedValues: ['ignore', 'SQS']
-    Default: 'ignore'
-    Description: (Optional) Choose 'SQS' to create a new Subscriber Notification. Choose 'ignore' to skip Subscriber Notification creation.
     Type: String
 
   pOrgConfigurationSources:
@@ -732,23 +616,6 @@ Resources:
           ORG_CONFIGURATION_SOURCES: !Join
               - ','
               - !Ref pOrgConfigurationSources
-          CREATE_QUERY_SUBSCRIBER: !Ref pCreateQuerySubscriber
-          QUERY_SUBSCRIBER_NAME: !Ref pQuerySubscriberName
-          QUERY_EXTERNAL_ID: !Ref pQuerySubscriberExternalId
-          QUERY_SUBSCRIBER_REGIONS: !Ref pQuerySubscriberRegions
-          QUERY_LOG_SOURCES: !Join
-              - ','
-              - !Ref pQuerySubscriberLogSources
-          QUERY_SUBSCRIBER_ACCT: !Ref pQuerySubscriberAccount
-          CREATE_DATA_SUBSCRIBER: !Ref pCreateDataSubscriber
-          DATA_SUBSCRIBER_NAME: !Ref pDataSubscriberName
-          DATA_EXTERNAL_ID: !Ref pDataSubscriberExternalId
-          DATA_SUBSCRIBER_REGIONS: !Ref pDataSubscriberRegions
-          DATA_LOG_SOURCES: !Join
-              - ','
-              - !Ref pDataSubscriberLogSources 
-          DATA_SUBSCRIBER_ACCT: !Ref pDataSubscriberAccount
-          CREATE_NOTIFICATION: !Ref pCreateDataSubscriberNotification
           SNS_TOPIC_ARN: !Ref rSecurityLakeOrgTopic
 
       Tags:
@@ -811,23 +678,6 @@ Resources:
       ORG_CONFIGURATION_SOURCES: !Join
           - ','
           - !Ref pOrgConfigurationSources
-      CREATE_QUERY_SUBSCRIBER: !Ref pCreateQuerySubscriber
-      QUERY_SUBSCRIBER_NAME: !Ref pQuerySubscriberName
-      QUERY_EXTERNAL_ID: !Ref pQuerySubscriberExternalId
-      QUERY_SUBSCRIBER_REGIONS: !Ref pQuerySubscriberRegions
-      QUERY_LOG_SOURCES: !Join
-          - ','
-          - !Ref pQuerySubscriberLogSources
-      QUERY_SUBSCRIBER_ACCT: !Ref pQuerySubscriberAccount
-      CREATE_DATA_SUBSCRIBER: !Ref pCreateDataSubscriber
-      DATA_SUBSCRIBER_NAME: !Ref pDataSubscriberName
-      DATA_EXTERNAL_ID: !Ref pDataSubscriberExternalId
-      DATA_SUBSCRIBER_REGIONS: !Ref pDataSubscriberRegions
-      DATA_LOG_SOURCES: !Join
-          - ','
-          - !Ref pDataSubscriberLogSources 
-      DATA_SUBSCRIBER_ACCT: !Ref pDataSubscriberAccount
-      CREATE_NOTIFICATION: !Ref pCreateDataSubscriberNotification
       SNS_TOPIC_ARN: !Ref rSecurityLakeOrgTopic
 
   rSecurityLakeOrgTopic:

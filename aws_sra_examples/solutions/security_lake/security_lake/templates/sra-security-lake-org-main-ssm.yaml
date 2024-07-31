@@ -57,31 +57,10 @@ Metadata:
           - pOrgConfigurationSources
 
       - Label:
-          default: Security Lake Configuration - Audit Account Subscribers
+          default: Security Lake Configuration - Audit (Security Tooling) account Subscribers
         Parameters:
           - pRegisterAuditAccountDataSubscriber
           - pRegisterAuditAccountQuerySubscriber
-      
-      - Label:
-          default: Security Lake Configuration - Query Access Subscriber
-        Parameters:
-          - pCreateQuerySubscriber
-          - pQuerySubscriberName
-          - pQuerySubscriberExternalId
-          - pQuerySubscriberRegions
-          - pQuerySubscriberLogSources
-          - pQuerySubscriberAccount
-      
-      - Label:
-          default: Security Lake Configuration - Data Access Subscriber
-        Parameters:
-          - pCreateDataSubscriber
-          - pDataSubscriberName
-          - pDataSubscriberExternalId
-          - pDataSubscriberRegions
-          - pDataSubscriberLogSources
-          - pDataSubscriberAccount
-          - pCreateDataSubscriberNotification
 
       - Label:
           default: General Lambda Function Properties
@@ -99,23 +78,23 @@ Metadata:
 
     ParameterLabels:
       pCloudTrailManagementEvents:
-        default: CloudTrail - Management Events
+        default: CloudTrail - Management Events (recommended))
       pLogArchiveAccountId:
         default: Log Archive Account ID
       pCloudTrailLambdaDataEvents:
-        default: CloudTrail - Lambda Data Events
+        default: CloudTrail - Lambda Data Events (recommended)
       pCloudTrailS3DataEvents:
-        default: CloudTrail - S3 Data Events
+        default: CloudTrail - S3 Data Events (high volume data)
       pSecurityHubFindings:
-        default: SecurityHub Findings
+        default: SecurityHub Findings (recommended)
       pVpcFlowLogs:
-        default: VPC Flow Logs
+        default: VPC Flow Logs (recommended)
       pWafLogs:
-        default: WAFv2 Logs
+        default: WAFv2 Logs (high volume data)
       pRoute53Logs:
-        default: Amazon Route 53 Resolver Query Logs
+        default: Amazon Route 53 Resolver Query Logs (recommended)
       pEksAuditLogs:
-        default: Amazon EKS Audit Logs
+        default: Amazon EKS Audit Logs (recommended)
       # pSources:
       #   default: Sources
       pOrgConfigurationSources:
@@ -129,7 +108,7 @@ Metadata:
       # pCreateKmsKey:
       #   default: Create KMS Key
       pAuditAccountId:
-        default: Audit Account ID
+        default: Audit (Security Tooling) account ID
       pComplianceFrequency:
         default: Frequency to Check for Organizational Compliance
       pControlTowerLifeCycleRuleName:
@@ -158,35 +137,9 @@ Metadata:
         default: SRA Staging S3 Bucket Name
 
       pRegisterAuditAccountDataSubscriber:
-        default: Register Audit Account as a Subscriber with Data Access
+        default: Register Audit (Security Tooling) account as a Subscriber with Data Access
       pRegisterAuditAccountQuerySubscriber:
-        default: Register Audit Account as a Subscriber with Query Access
-      pCreateQuerySubscriber:
-        default: Register a query access subscriber
-      pCreateDataSubscriber:
-        default: Register a data access subscriber
-      pQuerySubscriberName:
-        default: Query access subscriber name
-      pDataSubscriberName:
-        default: Data access subscriber name
-      pQuerySubscriberExternalId:
-        default: Query access subscriber external id
-      pDataSubscriberExternalId:
-        default: Data access subscriber external id
-      pQuerySubscriberRegions:
-        default: Query access subscriber regions
-      pDataSubscriberRegions:
-        default: Data access subscriber regions
-      pQuerySubscriberLogSources:
-        default: Query access subscriber log sources
-      pDataSubscriberLogSources:
-        default: Data access subscriber log sources
-      pQuerySubscriberAccount:
-        default: Query access subscriber account id
-      pDataSubscriberAccount:
-        default: Data access subscriber account id
-      pCreateDataSubscriberNotification:
-        default: Create Subscriber Notification
+        default: Register Audit (Security Tooling) account as a Subscriber with Query Access
       pStackSetAdminRole:
         default: Stack Set Role
       pStackExecutionRole:
@@ -281,8 +234,8 @@ Parameters:
   #   Type: CommaDelimitedList
   pOrgConfigurationSources:
     AllowedValues: ['', ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
-    Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
-    Description: (Optional) AWS log sources to enable for new member accounts in your organization. If 'Create Organization Configuration' parameter is set to 'true', then this parameter becomes required.
+    Default: ROUTE53,VPC_FLOW,SH_FINDINGS,CLOUD_TRAIL_MGMT,LAMBDA_EXECUTION,EKS_AUDIT
+    Description: (Optional) Comma separated list of AWS log sources to enable for new member accounts in your organization (ROUTE53,VPC_FLOW,SH_FINDINGS,CLOUD_TRAIL_MGMT,LAMBDA_EXECUTION,S3_DATA,EKS_AUDIT,WAF). If 'Create Organization Configuration' parameter is set to 'true', then this parameter becomes required.
     Type: CommaDelimitedList
   pCreateOrganizationConfiguration:
     AllowedValues: ['true', 'false']
@@ -332,7 +285,7 @@ Parameters:
       Only lowercase letters, numbers, and hyphens ('-') allowed. (e.g. us-east-1) Additional AWS regions can be provided, separated by commas. (e.g.
       us-east-1,ap-southeast-2)
     Default: ''
-    Description: (Optional) Enabled regions (AWS regions, separated by commas). Leave blank to enable all regions.
+    Description: (Optional) Enabled regions (AWS regions, separated by commas). Leave blank to enable all supported regions (recommended).
     Type: String
   pLambdaLogGroupKmsKey:
     AllowedPattern: '^$|^arn:(aws[a-zA-Z-]*){1}:kms:[a-z0-9-]+:\d{12}:key\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
@@ -388,89 +341,12 @@ Parameters:
   pRegisterAuditAccountDataSubscriber:
     AllowedValues: ['true', 'false']
     Default: 'true'
-    Description: Identifies whether to register Audit Account as a Subscriber with Data Access
+    Description: Identifies whether to registerAudit (Security Tooling) account as a Subscriber with Data Access
     Type: String
   pRegisterAuditAccountQuerySubscriber:
     AllowedValues: ['true', 'false']
     Default: 'true'
-    Description: Identifies whether to register Audit Account as a Subscriber with Query Access
-    Type: String
-  pCreateQuerySubscriber:
-    AllowedValues: ['true', 'false']
-    Default: 'false'
-    Description: Identifies whether to register a new query access Subscriber
-    Type: String
-  pCreateDataSubscriber:
-    AllowedValues: ['true', 'false']
-    Default: 'false'
-    Description: Identifies whether to register a new data access Subscriber
-    Type: String  
-  pQuerySubscriberName:
-    AllowedPattern: '^$|^[a-zA-Z][-a-zA-Z0-9]*$'
-    ConstraintDescription: Subscriber name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
-    Default: ''
-    Description: (Optional) Name for Security Lake subscriber with query access. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pDataSubscriberName:
-    AllowedPattern: '^$|^[a-zA-Z][-a-zA-Z0-9]*$'
-    ConstraintDescription: Subscriber name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-).
-    Default: ''
-    Description: (Optional) Name for Security Lake subscriber with data access. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pQuerySubscriberExternalId:
-    AllowedPattern: '^$|^[a-zA-Z0-9-]{1,64}$'
-    ConstraintDescription: Max 64 alphanumeric and underscore characters. Also special characters supported [., -]
-    Default: ''
-    Description: (Optional) External ID for Security Lake query access subscriber. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pDataSubscriberExternalId:
-    AllowedPattern: '^$|^[a-zA-Z0-9-]{1,64}$'
-    ConstraintDescription: Max 64 alphanumeric and underscore characters. Also special characters supported [., -]
-    Default: ''
-    Description: (Optional) External ID for Security Lake data access subscriber. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pQuerySubscriberRegions:
-    AllowedPattern: '^$|^([a-z0-9-]{1,64})$|^(([a-z0-9-]{1,64},)*[a-z0-9-]{1,64})$'
-    ConstraintDescription:
-      Only lowercase letters, numbers, and hyphens ('-') allowed. (e.g. us-east-1) Additional AWS regions can be provided, separated by commas. (e.g.
-      us-east-1,ap-southeast-2)
-    Default: ''
-    Description: (Optional) Query access subscriber regions (AWS regions, separated by commas). Leave blank to enable all regions.
-    Type: String
-  pDataSubscriberRegions:
-    AllowedPattern: '^$|^([a-z0-9-]{1,64})$|^(([a-z0-9-]{1,64},)*[a-z0-9-]{1,64})$'
-    ConstraintDescription:
-      Only lowercase letters, numbers, and hyphens ('-') allowed. (e.g. us-east-1) Additional AWS regions can be provided, separated by commas. (e.g.
-      us-east-1,ap-southeast-2)
-    Default: ''
-    Description: (Optional) Data access subscriber regions (AWS regions, separated by commas). Leave blank to enable all regions.
-    Type: String
-  pQuerySubscriberLogSources:
-    AllowedValues: [ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
-    Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
-    Description: (Optional) Log sources query subscriber can access. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: CommaDelimitedList
-  pDataSubscriberLogSources:
-    AllowedValues: [ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF]
-    Default: ROUTE53, VPC_FLOW, SH_FINDINGS, CLOUD_TRAIL_MGMT, LAMBDA_EXECUTION, S3_DATA, EKS_AUDIT, WAF
-    Description: (Optional) Log sources data access subscriber can access. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: CommaDelimitedList
-  pQuerySubscriberAccount:
-    AllowedPattern: '^\d{12}$'
-    Default: 222222222222
-    ConstraintDescription: Must be 12 digits.
-    Description: (Optional) AWS Account ID of the query access subscriber. If 'Register a query access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pDataSubscriberAccount:
-    AllowedPattern: '^\d{12}$'
-    Default: 222222222222
-    ConstraintDescription: Must be 12 digits.
-    Description: (Optional) AWS Account ID of the data access subscriber. If 'Register a data access subscriber' parameter is set to 'true', then this parameter becomes required.
-    Type: String
-  pCreateDataSubscriberNotification:
-    AllowedValues: ['ignore', 'SQS']
-    Default: 'ignore'
-    Description: (Optional) Choose 'SQS' to create a new Subscriber Notification. Choose 'ignore' to skip Subscriber Notification creation.
+    Description: Identifies whether to register Audit (Security Tooling) account as a Subscriber with Query Access
     Type: String
   pStackSetAdminRole:
     AllowedValues: [sra-stackset]
@@ -498,10 +374,6 @@ Parameters:
 
 Conditions:
   cRegisterAuditAccountQuerySubscriber: !Equals [!Ref pRegisterAuditAccountQuerySubscriber, 'true']
-  cCreateQuerySubscriber: !Equals [!Ref pCreateQuerySubscriber, 'true']
-  cCreateSubscriberRole: !Or
-    - !Condition cCreateQuerySubscriber
-    - !Condition cRegisterAuditAccountQuerySubscriber
 
 Rules:
   VerifySecurityLakeDisclaimer:
@@ -513,7 +385,7 @@ Rules:
 Resources:
   rSecurityLakeQuerySubscriberIAMRoleStackSet:
     Type: AWS::CloudFormation::StackSet
-    Condition: cCreateSubscriberRole
+    Condition: cRegisterAuditAccountQuerySubscriber
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -534,15 +406,8 @@ Resources:
       PermissionModel: SELF_MANAGED
       StackInstancesGroup:
         - DeploymentTargets:
-            Accounts:  # TODO separate into two stacks
-              - !If
-                - cCreateQuerySubscriber
-                - !Ref pQuerySubscriberAccount
-                - !Ref 'AWS::NoValue'
-              - !If
-                - cRegisterAuditAccountQuerySubscriber
-                - !Ref pAuditAccountId
-                - !Ref 'AWS::NoValue'
+            Accounts:
+              - !Ref pAuditAccountId
           Regions:
             - !Ref AWS::Region
       TemplateURL: !Sub https://${pSRAStagingS3BucketName}.s3.${AWS::Region}.${AWS::URLSuffix}/${pSRASolutionName}/templates/sra-security-lake-query-subscriber-role.yaml
@@ -637,23 +502,6 @@ Resources:
         pSourceVersion: !Ref pSourceVersion
         pRegisterAuditAccountDataSubscriber: !Ref pRegisterAuditAccountDataSubscriber
         pRegisterAuditAccountQuerySubscriber: !Ref pRegisterAuditAccountQuerySubscriber
-        pCreateQuerySubscriber: !Ref pCreateQuerySubscriber
-        pCreateDataSubscriber: !Ref pCreateDataSubscriber
-        pQuerySubscriberName: !Ref pQuerySubscriberName
-        pDataSubscriberName: !Ref pDataSubscriberName
-        pQuerySubscriberExternalId: !Ref pQuerySubscriberExternalId
-        pDataSubscriberExternalId: !Ref pDataSubscriberExternalId
-        pQuerySubscriberRegions: !Ref pQuerySubscriberRegions
-        pDataSubscriberRegions: !Ref pDataSubscriberRegions
-        pQuerySubscriberLogSources: !Join
-            - ','
-            - !Ref pQuerySubscriberLogSources
-        pDataSubscriberLogSources: !Join
-            - ','
-            - !Ref pDataSubscriberLogSources
-        pQuerySubscriberAccount: !Ref pQuerySubscriberAccount
-        pDataSubscriberAccount: !Ref pDataSubscriberAccount
-        pCreateDataSubscriberNotification: !Ref pCreateDataSubscriberNotification
         pOrganizationId: !Ref pOrganizationId
       Tags:
         - Key: sra-solution
