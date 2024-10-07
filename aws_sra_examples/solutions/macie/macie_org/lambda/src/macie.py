@@ -21,7 +21,7 @@ from botocore.exceptions import ClientError
 
 if TYPE_CHECKING:
     from mypy_boto3_macie2 import Macie2Client
-    from mypy_boto3_macie2.type_defs import ListOrganizationAdminAccountsResponseTypeDef, CreateClassificationJobRequestRequestTypeDef
+    from mypy_boto3_macie2.type_defs import CreateClassificationJobRequestRequestTypeDef, ListOrganizationAdminAccountsResponseTypeDef
     from mypy_boto3_organizations import OrganizationsClient
     from mypy_boto3_sns import SNSClient
 
@@ -180,7 +180,7 @@ def enable_macie(
             LOGGER.info(f"Macie already enabled in {region}.")
 
 
-def create_macie_job(configuration_role_name: str, admin_account_id: str, regions: list, job_name: str, tag_key: str) -> None:
+def create_macie_job(configuration_role_name: str, admin_account_id: str, regions: list, job_name: str, tag_key: str) -> None:  # noqa: ECE001
     """Create Macie job.
 
     Args:
@@ -218,7 +218,7 @@ def create_macie_job(configuration_role_name: str, admin_account_id: str, region
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
             if error_code == "ResourceInUseException":
-                LOGGER.info(f"Macie classification job '{job_name}' already exists in {region}")     
+                LOGGER.info(f"Macie classification job '{job_name}' already exists in {region}")
 
 
 def process_delete_event(params: dict, regions: list, account_ids: list, include_members: bool = False) -> None:

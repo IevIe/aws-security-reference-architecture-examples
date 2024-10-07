@@ -12,6 +12,7 @@ Version: 1.2
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 SPDX-License-Identifier: MIT-0
 """
+
 from __future__ import annotations
 
 import json
@@ -93,7 +94,9 @@ def process_create_update_event(params: dict, regions: list) -> None:
             params["FINDING_PUBLISHING_FREQUENCY"],
         )
         if params["CREATE_MACIE_JOB"]:
-            macie.create_macie_job(params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], regions, params["MACIE_JOB_NAME"], params["TAG_KEY"])
+            macie.create_macie_job(
+                params["CONFIGURATION_ROLE_NAME"], params["DELEGATED_ADMIN_ACCOUNT_ID"], regions, params["MACIE_JOB_NAME"], params["TAG_KEY"]
+            )
 
 
 def parameter_pattern_validator(parameter_name: str, parameter_value: str, pattern: str) -> None:

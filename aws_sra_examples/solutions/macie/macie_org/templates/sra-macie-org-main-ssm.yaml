@@ -81,7 +81,7 @@ Metadata:
         default: Finding Publishing Frequency
       pLambdaLogGroupKmsKey:
         default: (Optional) Lambda Logs KMS Key
-      pLambdaLogGroupRetention: 
+      pLambdaLogGroupRetention:
         default: Lambda Log Group Retention
       pLambdaLogLevel:
         default: Lambda Log Level
