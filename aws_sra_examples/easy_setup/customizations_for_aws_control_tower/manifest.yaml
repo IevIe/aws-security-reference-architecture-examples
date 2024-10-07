@@ -19,8 +19,8 @@ resources:
         parameter_value: "No"
       - parameter_key: pDeployConfigManagementSolution
         parameter_value: "No"
-      - parameter_key: pDeployConfigConformancePackSolution
-        parameter_value: "No"
+      # - parameter_key: pDeployConfigConformancePackSolution
+      #   parameter_value: "No"
       - parameter_key: pDeployDetectiveSolution
         parameter_value: "No"
       - parameter_key: pDeployEC2DefaultEBSEncryptionSolution
@@ -110,14 +110,14 @@ resources:
         parameter_value: ""
 
       # AWS Config Conformance Pack Solution
-      - parameter_key: pConformancePackName
-        parameter_value: "sra-operational-best-practices-for-encryption-and-keys"
-      - parameter_key: pConformancePackTemplateName
-        parameter_value: "Operational-Best-Practices-for-Encryption-and-Keys.yaml"
-      - parameter_key: pDeliveryS3KeyPrefix
-        parameter_value: ""
-      - parameter_key: pConformancePackExcludedAccounts
-        parameter_value: ""
+      # - parameter_key: pConformancePackName
+      #   parameter_value: "sra-operational-best-practices-for-encryption-and-keys"
+      # - parameter_key: pConformancePackTemplateName
+      #   parameter_value: "Operational-Best-Practices-for-Encryption-and-Keys.yaml"
+      # - parameter_key: pDeliveryS3KeyPrefix
+      #   parameter_value: ""
+      # - parameter_key: pConformancePackExcludedAccounts
+      #   parameter_value: ""
 
       # Detective Solution
       - parameter_key: pDatasourcePackages
@@ -208,6 +208,12 @@ resources:
         parameter_value: "sra-macie-org-delivery"
       - parameter_key: pMacieOrgDeliveryKeyAlias
         parameter_value: "sra-macie-org-delivery-key"
+      - parameter_key: pCreateMacieJob
+        parameter_value: 'true'
+      - parameter_key: pExcludesTagKey
+        parameter_value: 'sra-exclude-from-default-job'
+      - parameter_key: pMacieJobName
+        parameter_value: 'sra-macie-classification-job'
 
       # S3 Block Account Public Access Solution
       - parameter_key: pExcludeS3BlockAccountPublicAccessTags

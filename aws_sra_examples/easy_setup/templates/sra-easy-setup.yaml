@@ -47,7 +47,7 @@ Metadata:
           - pDeployCloudTrailSolution
           - pDeployConfigSolution
           - pDeployConfigManagementSolution
-          - pDeployConfigConformancePackSolution
+          # - pDeployConfigConformancePackSolution
           - pDeployEC2DefaultEBSEncryptionSolution
           - pDeployDetectiveSolution
           - pDeployFirewallManagerSolution
@@ -119,13 +119,13 @@ Metadata:
           - pIncludeGlobalResourceTypes
           - pKmsKeyArn
           - pResourceTypes
-      - Label:
-          default: AWS Config Conformance Pack Solution
-        Parameters:
-          - pConformancePackName
-          - pConformancePackTemplateName
-          - pDeliveryS3KeyPrefix
-          - pConformancePackExcludedAccounts
+      # - Label:
+      #     default: AWS Config Conformance Pack Solution
+      #   Parameters:
+      #     - pConformancePackName
+      #     - pConformancePackTemplateName
+      #     - pDeliveryS3KeyPrefix
+      #     - pConformancePackExcludedAccounts
       - Label:
           default: Detective Solution
         Parameters:
@@ -184,6 +184,9 @@ Metadata:
           default: Macie Solution
         Parameters:
           - pDisableMacie
+          - pCreateMacieJob
+          - pMacieJobName
+          - pExcludesTagKey
           - pMacieFindingPublishingFrequency
           - pMacieOrgDeliveryBucketPrefix
           - pMacieOrgDeliveryKeyAlias
@@ -383,16 +386,18 @@ Metadata:
         default: CloudTrail Name
       pComplianceFrequency:
         default: Frequency to Check for Organizational Compliance
-      pConformancePackExcludedAccounts:
-        default: (Optional) Account IDs to Exclude From the Conformance Pack
-      pConformancePackName:
-        default: Conformance Pack Name
-      pConformancePackTemplateName:
-        default: Conformance Pack Template Name
+      # pConformancePackExcludedAccounts:
+      #   default: (Optional) Account IDs to Exclude From the Conformance Pack
+      # pConformancePackName:
+      #   default: Conformance Pack Name
+      # pConformancePackTemplateName:
+      #   default: Conformance Pack Template Name
       pCreateCloudTrailLogGroup:
         default: Create CloudTrail CloudWatch Log Group
       pCreateLambdaLogGroup:
         default: Create Lambda Log Group
+      pCreateMacieJob:
+        default: Create Macie Job
       pCreateVpcForSG:
         default: Create VPC For Security Group
       pDatasourcePackages:
@@ -403,8 +408,8 @@ Metadata:
         default: Deploy the Account Alternate Contacts Solution
       pDeployCloudTrailSolution:
         default: Deploy the CloudTrail Solution
-      pDeployConfigConformancePackSolution:
-        default: Deploy the AWS Config Conformance Pack Solution
+      # pDeployConfigConformancePackSolution:
+      #   default: Deploy the AWS Config Conformance Pack Solution
       pDeployConfigSolution:
         default: Deploy the AWS Config Solution (This solution is incompatible with the AWS Control Tower environment)
       pDeployConfigManagementSolution:
@@ -461,6 +466,8 @@ Metadata:
         default: (Optional) Exclude EC2 Default EBS Encryption Tags
       pExcludeS3BlockAccountPublicAccessTags:
         default: (Optional) Exclude S3 Block Account Public Access Tags
+      pExcludesTagKey:
+        default: Tag Key
       pGuardDutyCustomerGovernedRegionsOnly:
         default: Enable GuardDuty in Customer Governed Regions Only
       pGuardDutyEnabledRegions:
@@ -491,6 +498,8 @@ Metadata:
         default: Lambda Log Level
       pMacieFindingPublishingFrequency:
         default: Macie Finding Publishing Frequency
+      pMacieJobName:
+        default: Macie Job Name
       pMacieOrgDeliveryBucketPrefix:
         default: Macie Delivery Bucket Prefix
       pMacieOrgDeliveryKeyAlias:
@@ -964,26 +973,26 @@ Parameters:
     MinValue: 1
     MaxValue: 30
     Type: Number
-  pConformancePackExcludedAccounts:
-    AllowedPattern: '^$|^(\d{12})$|^((\d{12},)*\d{12})$'
-    ConstraintDescription: AWS Account IDs separated by commas. (e.g. 123456789012,234567890123)
-    Default: ""
-    Description:
-      (Optional) Comma delimited list of account IDs to exclude from the Organization conformance pack. Accounts that do not have AWS Config enabled
-      must be excluded.
-    Type: String
-  pConformancePackName:
-    AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
-    ConstraintDescription:
-      Name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-). Max length is 128
-      characters.
-    Default: sra-operational-best-practices-for-encryption-and-keys
-    Description: The name you assign to an organization conformance pack
-    Type: String
-  pConformancePackTemplateName:
-    Default: Operational-Best-Practices-for-Encryption-and-Keys.yaml
-    Description: Conformance pack template file name within the aws_config_conformance_packs folder. e.g. my-conformance-pack.yaml
-    Type: String
+  # pConformancePackExcludedAccounts:
+  #   AllowedPattern: '^$|^(\d{12})$|^((\d{12},)*\d{12})$'
+  #   ConstraintDescription: AWS Account IDs separated by commas. (e.g. 123456789012,234567890123)
+  #   Default: ""
+  #   Description:
+  #     (Optional) Comma delimited list of account IDs to exclude from the Organization conformance pack. Accounts that do not have AWS Config enabled
+  #     must be excluded.
+  #   Type: String
+  # pConformancePackName:
+  #   AllowedPattern: "^[a-zA-Z][-a-zA-Z0-9]*$"
+  #   ConstraintDescription:
+  #     Name can include numbers, lowercase letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen (-). Max length is 128
+  #     characters.
+  #   Default: sra-operational-best-practices-for-encryption-and-keys
+  #   Description: The name you assign to an organization conformance pack
+  #   Type: String
+  # pConformancePackTemplateName:
+  #   Default: Operational-Best-Practices-for-Encryption-and-Keys.yaml
+  #   Description: Conformance pack template file name within the aws_config_conformance_packs folder. e.g. my-conformance-pack.yaml
+  #   Type: String
   pCreateCloudTrailLogGroup:
     AllowedValues: ["true", "false"]
     Default: "true"
@@ -997,6 +1006,11 @@ Parameters:
     Description:
       Indicates whether a CloudWatch Log Group should be explicitly created for the Lambda function, to allow for setting a Log Retention and/or KMS
       Key for encryption.
+    Type: String
+  pCreateMacieJob:
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+    Description: Indicates whether to create a Macie classification job with a daily schedule.
     Type: String
   pCreateVpcForSG:
     AllowedValues: ["true", "false"]
@@ -1024,11 +1038,11 @@ Parameters:
     Default: "No"
     Description: Deploy the CloudTrail solution
     Type: String
-  pDeployConfigConformancePackSolution:
-    AllowedValues: ["Yes", "No"]
-    Default: "No"
-    Description: Deploy the AWS Config Conformance Pack solution
-    Type: String
+  # pDeployConfigConformancePackSolution:
+  #   AllowedValues: ["Yes", "No"]
+  #   Default: "No"
+  #   Description: Deploy the AWS Config Conformance Pack solution
+  #   Type: String
   pDeployConfigSolution:
     AllowedValues: ["Yes", "No"]
     Default: "No"
@@ -1175,6 +1189,12 @@ Parameters:
       '(Optional) Resource Tags that denote an Account should be excluded from this solution in JSON format: [{"Key": "string", "Value": "string"},
       ... ]. For example, [{"Key": "exclude-s3-block-account-public-access", "Value": "true"}].'
     Type: String
+  pExcludesTagKey:
+    AllowedPattern: '^[\w-]{1,64}$'
+    ConstraintDescription: Max 64 alphanumeric characters. Also special characters supported [_, -]
+    Default: sra-exclude-from-default-job
+    Description: A key for a tag-based condition that determines which buckets to exclude from the job. To exclude the bucket set the value of this tag to 'True'.
+    Type: String
   pGuardDutyCustomerGovernedRegionsOnly:
     AllowedValues: ["true", "false"]
     Default: "false"
@@ -1281,6 +1301,12 @@ Parameters:
     AllowedValues: [FIFTEEN_MINUTES, ONE_HOUR, SIX_HOURS]
     Default: FIFTEEN_MINUTES
     Description: Finding publishing frequency
+    Type: String
+  pMacieJobName:
+    AllowedPattern: '^[\w-]{1,500}$'
+    ConstraintDescription: Max 500 alphanumeric characters. Also special characters supported [_, -]
+    Default: sra-macie-classification-job
+    Description: A custom name for the job.
     Type: String
   pMacieOrgDeliveryBucketPrefix:
     AllowedPattern: "^$|^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$"
@@ -2029,16 +2055,16 @@ Rules:
         AssertDescription:
           "'Billing Full Name', 'Billing Title', 'Billing Email' and 'Billing Phone' parameters are required if the 'Billing Alternate Contact Action'
           parameter is set to 'add'."
-  DeployConfigConformancePackSolutionValidation:
-    RuleCondition: !Equals [!Ref pDeployConfigConformancePackSolution, "Yes"]
-    Assertions:
-      - Assert: !Or
-          - !Equals [!Ref pDeployConfigManagementSolution, "Yes"]
-          - !Equals [!Ref pDeployConfigManagementSolution, "Already Deployed"]
-          - !Equals [!Ref pDeployConfigSolution, "Yes"]
-        AssertDescription:
-          "'Deploy the AWS Config Management Solution' parameter must be set to 'Yes' or 'Already Deployed', if the 'Deploy the AWS Config Conformance
-          Pack Solution' parameter is set to 'Yes'."
+  # DeployConfigConformancePackSolutionValidation:
+  #   RuleCondition: !Equals [!Ref pDeployConfigConformancePackSolution, "Yes"]
+  #   Assertions:
+  #     - Assert: !Or
+  #         - !Equals [!Ref pDeployConfigManagementSolution, "Yes"]
+  #         - !Equals [!Ref pDeployConfigManagementSolution, "Already Deployed"]
+  #         - !Equals [!Ref pDeployConfigSolution, "Yes"]
+  #       AssertDescription:
+  #         "'Deploy the AWS Config Management Solution' parameter must be set to 'Yes' or 'Already Deployed', if the 'Deploy the AWS Config Conformance
+  #         Pack Solution' parameter is set to 'Yes'."
   DeploySecurityHubSolutionValidation:
     RuleCondition: !Equals [!Ref pDeploySecurityHubSolution, "Yes"]
     Assertions:
@@ -2120,12 +2146,12 @@ Conditions:
     !Equals [!Ref pDeployConfigManagementSolution, "Yes"]
   cDeployConfigManagementSolutionAlreadyDeployed:
     !Equals [!Ref pDeployConfigManagementSolution, "Already Deployed"]
-  cDeployConfigConformancePackSolution: !And
-    - !Or
-      - !Condition cDeployConfigManagementSolution
-      - !Condition cDeployConfigManagementSolutionAlreadyDeployed
-      - !Condition cDeployConfigSolution
-    - !Equals [!Ref pDeployConfigConformancePackSolution, "Yes"]
+  # cDeployConfigConformancePackSolution: !And
+  #   - !Or
+  #     - !Condition cDeployConfigManagementSolution
+  #     - !Condition cDeployConfigManagementSolutionAlreadyDeployed
+  #     - !Condition cDeployConfigSolution
+  #   - !Equals [!Ref pDeployConfigConformancePackSolution, "Yes"]
   cDeployDetectiveSolution: !Equals [!Ref pDeployDetectiveSolution, "Yes"]
   cDeployEC2DefaultEBSEncryptionSolution:
     !Equals [!Ref pDeployEC2DefaultEBSEncryptionSolution, "Yes"]
@@ -2716,25 +2742,25 @@ Resources:
         pLambdaLogLevel: !Ref pLambdaLogLevel
         pResourceTypes: !Ref pResourceTypes
 
-  rConfigConformancePackSolutionStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: rCommonPrerequisitesMainSsm
-    Condition: cDeployConfigConformancePackSolution
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      TemplateURL: !Sub https://${pSRAStagingS3BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}.s3.${AWS::Region}.${AWS::URLSuffix}/sra-config-conformance-pack-org/templates/sra-config-conformance-pack-org-main-ssm.yaml
-      Parameters:
-        pConformancePackName: !Ref pConformancePackName
-        pConformancePackTemplateName: !Ref pConformancePackTemplateName
-        pDeliveryS3KeyPrefix: !Ref pDeliveryS3KeyPrefix
-        pExcludedAccounts: !Ref pConformancePackExcludedAccounts
-        pSourceStackName:
-          !If [
-            cDeployConfigManagementSolution,
-            !Ref rConfigManagementSolutionStack,
-            "",
-          ]
+  # rConfigConformancePackSolutionStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   DependsOn: rCommonPrerequisitesMainSsm
+  #   Condition: cDeployConfigConformancePackSolution
+  #   DeletionPolicy: Delete
+  #   UpdateReplacePolicy: Delete
+  #   Properties:
+  #     TemplateURL: !Sub https://${pSRAStagingS3BucketNamePrefix}-${AWS::AccountId}-${AWS::Region}.s3.${AWS::Region}.${AWS::URLSuffix}/sra-config-conformance-pack-org/templates/sra-config-conformance-pack-org-main-ssm.yaml
+  #     Parameters:
+  #       pConformancePackName: !Ref pConformancePackName
+  #       pConformancePackTemplateName: !Ref pConformancePackTemplateName
+  #       pDeliveryS3KeyPrefix: !Ref pDeliveryS3KeyPrefix
+  #       pExcludedAccounts: !Ref pConformancePackExcludedAccounts
+  #       pSourceStackName:
+  #         !If [
+  #           cDeployConfigManagementSolution,
+  #           !Ref rConfigManagementSolutionStack,
+  #           "",
+  #         ]
 
   rDetectiveSolutionStack:
     Type: AWS::CloudFormation::Stack
@@ -2876,6 +2902,9 @@ Resources:
         pMacieOrgDeliveryBucketPrefix: !Ref pMacieOrgDeliveryBucketPrefix
         pMacieOrgDeliveryKeyAlias: !Ref pMacieOrgDeliveryKeyAlias
         pSRAAlarmEmail: !Ref pSRAAlarmEmail
+        pCreateMacieJob: !Ref pCreateMacieJob
+        pMacieJobName: !Ref pMacieJobName
+        pExcludesTagKey: !Ref pExcludesTagKey
 
   rS3BlockAccountPublicAccessSolutionStack:
     Type: AWS::CloudFormation::Stack
